@@ -1,6 +1,6 @@
 // src/lib/prices.ts
 
-import { Network, Alchemy } from '@alchemy-sdk/web3';
+import { Network, Alchemy } from '@alchemy-sdk';
 
 interface PriceData {
   symbol: string;
