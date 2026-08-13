@@ -1,21 +1,10 @@
 // src/lib/prices.ts
 
-interface PriceData {
-  symbol: string;
-  name: string;
-  price: number;
-  priceChange24h: number;
-  lastUpdated: string;
-}
-
 // ============================================================
-// COINCAP API (No API key needed, reliable)
+// TOKEN MAPPINGS (CoinGecko IDs)
 // ============================================================
 
-const COINCAP_API = 'https://api.coincap.io/v2';
-
-// CoinCap asset IDs for major tokens
-const SYMBOL_TO_COINCAP: Record<string, string> = {
+const SYMBOL_TO_ID: Record<string, string> = {
   'ETH': 'ethereum',
   'USDC': 'usd-coin',
   'USDT': 'tether',
@@ -23,18 +12,30 @@ const SYMBOL_TO_COINCAP: Record<string, string> = {
   'LINK': 'chainlink',
   'UNI': 'uniswap',
   'MATIC': 'polygon',
-  'BNB': 'binance-coin',
+  'BNB': 'binancecoin',
   'ARB': 'arbitrum',
   'OP': 'optimism',
-  'AVAX': 'avalanche',
+  'AVAX': 'avalanche-2',
   'DAI': 'dai',
   'AAVE': 'aave',
   'SOL': 'solana',
   'MKR': 'maker',
   'CRV': 'curve-dao-token',
   'CVX': 'convex-finance',
+  'BTC': 'bitcoin',
+  'DOGE': 'dogecoin',
+  'DOT': 'polkadot',
+  'ADA': 'cardano',
+  'LTC': 'litecoin',
+  'BCH': 'bitcoin-cash',
+  'XRP': 'ripple',
+  'ATOM': 'cosmos',
+  'NEAR': 'near',
+  'APT': 'aptos',
+  'SUI': 'sui',
 };
 
+// Token names for display
 const TOKEN_NAMES: Record<string, string> = {
   'ETH': 'Ethereum',
   'USDC': 'USD Coin',
@@ -53,69 +54,89 @@ const TOKEN_NAMES: Record<string, string> = {
   'MKR': 'Maker',
   'CRV': 'Curve DAO',
   'CVX': 'Convex Finance',
+  'BTC': 'Bitcoin',
+  'DOGE': 'Dogecoin',
+  'DOT': 'Polkadot',
+  'ADA': 'Cardano',
+  'LTC': 'Litecoin',
+  'BCH': 'Bitcoin Cash',
+  'XRP': 'XRP',
+  'ATOM': 'Cosmos',
+  'NEAR': 'NEAR Protocol',
+  'APT': 'Aptos',
+  'SUI': 'Sui',
 };
+
+// ============================================================
+// SCAM TOKEN FILTER
+// ============================================================
+
+const SCAM_PATTERNS = [
+  'SOFTCRYPT', 'CATE', 'NEIRO', 'BLINK', 'MATKA', 'HUB', 'SOBA',
+  'VITALIK', 'WORMHOLE', 'CLAIM', 'REWARD', 'AIRDROP', 'BONUS',
+  'FREE', 'TELEGRAM', 'T.ME', 'PROMO', 'GIVEAWAY', 'WIN', 'PRIZE',
+];
+
+const isScamToken = (symbol: string): boolean => {
+  const upper = symbol.toUpperCase();
+  return SCAM_PATTERNS.some(pattern => upper.includes(pattern));
+};
+
+// ============================================================
+// MAIN PRICE FETCHING - CoinGecko ONLY
+// ============================================================
 
 export async function getMultipleTokenPrices(symbols: string[]): Promise<Record<string, number>> {
   const result: Record<string, number> = {};
   
-  // Default to major tokens if empty
   if (!symbols || symbols.length === 0) {
     symbols = ['ETH', 'USDC', 'WBTC', 'LINK', 'UNI', 'MATIC', 'BNB'];
   }
 
   try {
-    // Filter symbols that have CoinCap mappings
-    const validSymbols = symbols
-      .map(s => s.toUpperCase())
-      .filter(s => SYMBOL_TO_COINCAP[s]);
+    // Filter scam tokens and duplicates
+    const cleanSymbols = [...new Set(
+      symbols
+        .map(s => s.toUpperCase())
+        .filter(s => !isScamToken(s))
+        .filter(s => SYMBOL_TO_ID[s])
+    )];
 
-    if (validSymbols.length === 0) {
-      console.warn('⚠️ No valid CoinCap symbols');
+    if (cleanSymbols.length === 0) {
+      console.warn('⚠️ No valid symbols after filtering');
+      symbols.forEach(s => { result[s.toUpperCase()] = 0; });
       return result;
     }
 
-    const ids = validSymbols.map(s => SYMBOL_TO_COINCAP[s]).join(',');
-    console.log(`🔍 Fetching CoinCap prices for: ${validSymbols.join(', ')}`);
+    console.log(`🔍 Fetching ${cleanSymbols.length} token prices via CoinGecko...`);
 
-    const response = await fetch(`${COINCAP_API}/assets?ids=${ids}`, {
-      headers: {
-        'Accept': 'application/json',
-      },
-    });
+    // ✅ ONLY CoinGecko via server API
+    const response = await fetch(
+      `/api/prices?symbols=${cleanSymbols.join(',')}`,
+      {
+        headers: { 'Accept': 'application/json' },
+        cache: 'force-cache',
+        next: { revalidate: 60 },
+      }
+    );
 
     if (!response.ok) {
-      throw new Error(`CoinCap API error: ${response.status}`);
+      throw new Error(`API error: ${response.status}`);
     }
 
     const data = await response.json();
     
-    if (!data.data || data.data.length === 0) {
-      throw new Error('No data from CoinCap');
-    }
-
-    // Map results back to symbols
-    data.data.forEach((item: any) => {
-      const symbol = Object.keys(SYMBOL_TO_COINCAP).find(
-        key => SYMBOL_TO_COINCAP[key] === item.id
-      );
-      if (symbol) {
-        result[symbol] = parseFloat(item.priceUsd) || 0;
-      }
+    cleanSymbols.forEach(symbol => {
+      result[symbol] = data[symbol] || 0;
     });
 
-    console.log(`✅ CoinCap succeeded for ${Object.keys(result).length} tokens`);
-    
-    // Fill in any missing tokens with 0
-    validSymbols.forEach(s => {
-      if (!(s in result)) {
-        result[s] = 0;
-      }
-    });
+    const successCount = Object.values(result).filter(v => v > 0).length;
+    console.log(`✅ Got ${successCount}/${cleanSymbols.length} prices from CoinGecko`);
 
     return result;
+
   } catch (error) {
-    console.error('❌ CoinCap failed:', error);
-    // Return zeros for all requested symbols
+    console.error('❌ Failed to fetch prices:', error);
     symbols.forEach(s => {
       result[s.toUpperCase()] = 0;
     });
@@ -126,4 +147,16 @@ export async function getMultipleTokenPrices(symbols: string[]): Promise<Record<
 export async function getTokenPrice(symbol: string): Promise<number> {
   const prices = await getMultipleTokenPrices([symbol]);
   return prices[symbol.toUpperCase()] || 0;
+}
+
+export function getTokenName(symbol: string): string {
+  return TOKEN_NAMES[symbol.toUpperCase()] || symbol;
+}
+
+export function isTokenSupported(symbol: string): boolean {
+  return symbol.toUpperCase() in SYMBOL_TO_ID;
+}
+
+export function getSupportedTokens(): string[] {
+  return Object.keys(SYMBOL_TO_ID);
 }
