@@ -2,49 +2,73 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
-  const addresses = searchParams.get('addresses');
+  const symbols = searchParams.get('symbols');
   
-  if (!addresses) {
-    return NextResponse.json({ error: 'No addresses provided' }, { status: 400 });
+  if (!symbols) {
+    return NextResponse.json({ error: 'No symbols provided' }, { status: 400 });
   }
 
-  const apiKey = process.env.ALCHEMY_API_KEY;
-  
-  if (!apiKey) {
-    console.error('❌ ALCHEMY_API_KEY not set in environment');
-    return NextResponse.json({ error: 'Alchemy API key not configured' }, { status: 500 });
+  // ✅ Map symbols to CoinGecko IDs
+  const SYMBOL_TO_ID: Record<string, string> = {
+    'ETH': 'ethereum',
+    'USDC': 'usd-coin',
+    'USDT': 'tether',
+    'WBTC': 'wrapped-bitcoin',
+    'LINK': 'chainlink',
+    'UNI': 'uniswap',
+    'MATIC': 'polygon',
+    'BNB': 'binancecoin',
+    'ARB': 'arbitrum',
+    'OP': 'optimism',
+    'AVAX': 'avalanche-2',
+    'DAI': 'dai',
+    'AAVE': 'aave',
+    'SOL': 'solana',
+    'MKR': 'maker',
+    'CRV': 'curve-dao-token',
+    'CVX': 'convex-finance',
+  };
+
+  const symbolList = symbols.split(',');
+  const validSymbols = symbolList.filter(s => SYMBOL_TO_ID[s.toUpperCase()]);
+
+  if (validSymbols.length === 0) {
+    return NextResponse.json({ error: 'No valid symbols' }, { status: 400 });
   }
+
+  const ids = validSymbols.map(s => SYMBOL_TO_ID[s.toUpperCase()]).join(',');
 
   try {
-    // ✅ Updated Alchemy Prices API v2 endpoint
-    // Uses the correct format: /prices/v2/tokens/by-address
-    const url = `https://api.g.alchemy.com/prices/v2/tokens/by-address?addresses=${addresses}`;
-    
-    console.log(`🔍 Fetching Alchemy prices for: ${addresses}`);
+    // ✅ CoinGecko API (free, no API key needed)
+    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`;
     
     const response = await fetch(url, {
-      method: 'GET',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
         'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       },
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Alchemy API error (${response.status}):`, errorText);
-      throw new Error(`Alchemy API error: ${response.status}`);
+      throw new Error(`CoinGecko API error: ${response.status}`);
     }
 
     const data = await response.json();
     
-    return NextResponse.json(data, {
+    // Map back to symbols
+    const result: Record<string, number> = {};
+    validSymbols.forEach(symbol => {
+      const id = SYMBOL_TO_ID[symbol.toUpperCase()];
+      result[symbol] = data[id]?.usd || 0;
+    });
+
+    return NextResponse.json(result, {
       headers: {
         'Cache-Control': 's-maxage=60, stale-while-revalidate=30',
       },
     });
   } catch (error) {
-    console.error('❌ Alchemy API failed:', error);
+    console.error('❌ CoinGecko API failed:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
