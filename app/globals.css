@@ -1,4 +1,6 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
   --background: #ffffff;
@@ -175,6 +177,34 @@ body {
 
 .cwt-wallet-button:hover {
   background: #1600a8;
+}
+
+.cwt-wallet-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cwt-wallet-tests {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 7px;
+  color: #555555;
+}
+
+.cwt-wallet-tests span {
+  display: inline-block;
+  padding: 2px 6px;
+  border: 1px solid #dddddd;
+  border-radius: 7px;
+  font-size: 6px;
+  cursor: pointer;
+}
+
+.cwt-wallet-tests span:hover {
+  background: #f0f0f0;
 }
 
 .cwt-wallet-supported {
@@ -553,6 +583,7 @@ body {
 
 .dark .cwt-header-title,
 .dark .cwt-header-subtitle,
+.dark .cwt-wallet-title,
 .dark .cwt-overview-heading h2,
 .dark .cwt-portfolio-header h3,
 .dark .cwt-price-header h3,
@@ -562,7 +593,12 @@ body {
   color: #eeeeff;
 }
 
+.dark .cwt-wallet-desc,
 .dark .cwt-stat-label,
+.dark .cwt-wallet-supported,
+.dark .cwt-holdings-header p,
+.dark .cwt-transactions-header p,
+.dark .cwt-transactions-address,
 .dark .cwt-bottom-label {
   color: #9999bb;
 }
@@ -577,6 +613,11 @@ body {
   background: #222244;
   border-color: #555577;
   color: #eeeeff;
+}
+
+.dark .cwt-overview-pill {
+  border-color: #444466;
+  color: #9999bb;
 }
 
 @media (max-width: 1000px) {
