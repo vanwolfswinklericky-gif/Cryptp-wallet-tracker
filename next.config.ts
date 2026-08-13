@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // ✅ Remove eslint from here - it's no longer supported
 };
 
 export default nextConfig;

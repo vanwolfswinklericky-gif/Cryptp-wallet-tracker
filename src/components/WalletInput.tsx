@@ -21,14 +21,10 @@ export default function WalletInput({ onAddressSubmit, isLoading = false }: Prop
     }
   };
 
-  // ✅ Updated test addresses with Bitcoin and Solana
   const testAddresses = [
     { label: 'Vitalik (ETH)', address: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045', chain: 'ethereum' },
     { label: 'Polygon Foundation', address: '0x8d12A197cB00D4747a1fe03395095ce2A5CC6819', chain: 'polygon' },
     { label: 'BSC Burn', address: '0x000000000000000000000000000000000000dEaD', chain: 'bsc' },
-    // ✅ New: Bitcoin and Solana test addresses
-    { label: 'Satoshi (BTC)', address: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa', chain: 'bitcoin' },
-    { label: 'Solana Foundation', address: 'GJAF6LKHNxRfvV9zDfZkYp7Vc1sHpRgLVn3LKgE8t2Vt', chain: 'solana' },
   ];
 
   const handleQuickTest = (testAddress: string, chain: string) => {
@@ -44,7 +40,7 @@ export default function WalletInput({ onAddressSubmit, isLoading = false }: Prop
           type="text"
           value={address}
           onChange={(e) => setAddress(e.target.value)}
-          placeholder="Enter wallet address (0x... for ETH, bc1... for BTC, base58 for SOL)"
+          placeholder="Enter wallet address (0x...)"
           disabled={isLoading}
           className="cwt-wallet-input"
         />

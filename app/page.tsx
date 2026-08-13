@@ -12,6 +12,7 @@ import {
   ArrowUpRight,
 } from 'lucide-react';
 
+import DashboardLayout from '@/components/DashboardLayout';
 import WalletInput from '@/components/WalletInput';
 import WalletOverview from '@/components/WalletOverview';
 import TokenHoldings from '@/components/TokenHoldings';
@@ -19,6 +20,7 @@ import RecentTransactions from '@/components/RecentTransactions';
 import PortfolioChart from '@/components/PortfolioChart';
 import LivePrices from '@/components/LivePrices';
 import ThemeToggle from '@/components/ThemeToggle';
+import AssetAllocation from '@/components/AssetAllocation';
 
 export default function Home() {
   const [address, setAddress] = useState('');
@@ -26,15 +28,14 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [chartData, setChartData] = useState<{ date: string; value: number }[]>([]);
+  const [allocation, setAllocation] = useState<{ name: string; value: number; color: string }[]>([]);
 
-  // ✅ FIXED: Build chart data showing ACTUAL BALANCE over time
+  // Build chart data from transactions
   const buildChartData = (transactions: any[], walletAddress: string, currentBalance: number) => {
     console.log('📊 Building chart data...');
     console.log('💰 Current balance:', currentBalance);
     
-    // ✅ If we have a balance, show it as the primary data
     if (currentBalance > 0) {
-      // Generate data for the last 30 days with the current balance
       const data = [];
       for (let i = 29; i >= 0; i--) {
         const date = new Date();
@@ -48,28 +49,23 @@ export default function Home() {
       return data;
     }
 
-    // Fallback: use transaction history if no balance
     if (!transactions || transactions.length === 0) {
       console.log('⚠️ No data available');
       return [{ date: new Date().toISOString().split('T')[0], value: 0 }];
     }
 
-    // Sort transactions by date
     const sorted = [...transactions].sort((a, b) => 
       parseInt(a.timeStamp) - parseInt(b.timeStamp)
     );
 
-    // Group by day and calculate running balance
     const dailyBalances: { [key: string]: number } = {};
     let runningBalance = 0;
 
     sorted.forEach(tx => {
       const date = new Date(parseInt(tx.timeStamp) * 1000).toISOString().split('T')[0];
       const value = parseFloat(tx.value) / 1e18;
-      
       const isIncoming = tx.to?.toLowerCase() === walletAddress?.toLowerCase();
       const amount = isIncoming ? value : -value;
-      
       runningBalance += amount;
       dailyBalances[date] = Math.max(0, runningBalance);
     });
@@ -83,14 +79,42 @@ export default function Home() {
     return result;
   };
 
+  // Build asset allocation from tokens
+  const buildAllocation = (tokens: any[]) => {
+    if (!tokens || tokens.length === 0) {
+      return [
+        { name: 'ETH', value: 100, color: '#627EEA' }
+      ];
+    }
+
+    const colors = ['#627EEA', '#2775CA', '#F5AC37', '#FF6B6B', '#6C5CE7', '#00B894', '#FD79A8', '#00CEC9'];
+    
+    const totalValue = tokens.reduce((sum, token) => {
+      const balance = parseFloat(token.balance) / Math.pow(10, token.decimals);
+      return sum + balance;
+    }, 0);
+
+    if (totalValue === 0) {
+      return [{ name: 'ETH', value: 100, color: '#627EEA' }];
+    }
+
+    return tokens.slice(0, 6).map((token, index) => {
+      const balance = parseFloat(token.balance) / Math.pow(10, token.decimals);
+      const value = (balance / totalValue) * 100;
+      return {
+        name: token.tokenSymbol || 'Unknown',
+        value: Math.max(0, value),
+        color: colors[index % colors.length]
+      };
+    });
+  };
+
   const handleAddressSubmit = async (addr: string, chain: string) => {
     setLoading(true);
     setError(null);
     setData(null);
 
     try {
-      console.log('🔍 Fetching wallet data for:', addr, 'on chain:', chain);
-      
       const response = await fetch(
         `/api/wallet/${addr}?includeTxs=true&chain=${chain}`
       );
@@ -110,9 +134,11 @@ export default function Home() {
       setData(result);
       setAddress(addr);
       
-      // ✅ FIXED: Pass current balance to buildChartData
       const chartDataFromTxs = buildChartData(result.transactions, addr, result.balance);
       setChartData(chartDataFromTxs);
+      
+      const allocationData = buildAllocation(result.tokens);
+      setAllocation(allocationData);
       
     } catch (err) {
       console.error('❌ Error fetching wallet data:', err);
@@ -126,9 +152,6 @@ export default function Home() {
 
   return (
     <div className="cwt-page">
-      {/* ==========================================
-          HEADER
-      ========================================== */}
       <header className="cwt-header">
         <div className="cwt-header-left">
           <h1 className="cwt-header-title">CRYPTO WALLET TRACKER</h1>
@@ -142,9 +165,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* ==========================================
-          WALLET SECTION
-      ========================================== */}
       <section className="cwt-wallet-section">
         <div className="cwt-wallet-card">
           <div className="cwt-wallet-icon">
@@ -154,23 +174,17 @@ export default function Home() {
               <path d="M16 13h5" />
             </svg>
           </div>
-
           <h2 className="cwt-wallet-title">Track a wallet</h2>
           <p className="cwt-wallet-desc">
             Enter a wallet address to view its portfolio and activity.
           </p>
-
           <WalletInput onAddressSubmit={handleAddressSubmit} />
-
           <p className="cwt-wallet-supported">
             Supports: Ethereum, Polygon, BSC, Arbitrum, Optimism, Avalanche, Base
           </p>
         </div>
       </section>
 
-      {/* ==========================================
-          LOADING
-      ========================================== */}
       {loading && (
         <div className="flex justify-center py-8">
           <div className="flex items-center gap-3 rounded-2xl border border-gray-300 bg-white px-6 py-4 shadow-sm dark:border-gray-600 dark:bg-gray-800">
@@ -187,9 +201,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* ==========================================
-          ERROR
-      ========================================== */}
       {error && !loading && (
         <div className="flex justify-center py-4">
           <div className="flex w-full max-w-2xl items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950/20">
@@ -204,12 +215,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* ==========================================
-          DASHBOARD
-      ========================================== */}
       {data && !loading && (
         <>
-          {/* OVERVIEW */}
           <div className="cwt-overview">
             <div className="cwt-overview-heading">
               <BarChart3 className="cwt-overview-icon" />
@@ -220,7 +227,6 @@ export default function Home() {
             )}
           </div>
 
-          {/* STATS GRID */}
           <div className="cwt-stats-grid">
             <div className="cwt-stat-card">
               <div className="cwt-stat-icon">
@@ -260,7 +266,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* MAIN GRID: Portfolio + Live Price */}
           <div className="cwt-main-grid">
             <div className="cwt-portfolio-card">
               <div className="cwt-portfolio-header">
@@ -282,7 +287,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* LOWER GRID: Tokens + Transactions */}
           <div className="cwt-lower-grid">
             <div className="cwt-holdings-card">
               <div className="cwt-holdings-header">
@@ -301,7 +305,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* BOTTOM GRID */}
           <div className="cwt-bottom-grid">
             <div className="cwt-bottom-card">
               <div className="cwt-bottom-icon">

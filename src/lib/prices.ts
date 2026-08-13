@@ -33,27 +33,6 @@ const TOKEN_ADDRESSES: Record<string, string> = {
   'CVX': '0x4e3fbd56cd56c3e72c1403e103b45db9da5b9d2b',
 };
 
-// CoinGecko ID mappings (fallback)
-const SYMBOL_TO_COINGECKO: Record<string, string> = {
-  'ETH': 'ethereum',
-  'USDC': 'usd-coin',
-  'USDT': 'tether',
-  'WBTC': 'wrapped-bitcoin',
-  'LINK': 'chainlink',
-  'UNI': 'uniswap',
-  'MATIC': 'polygon',
-  'BNB': 'binancecoin',
-  'ARB': 'arbitrum',
-  'OP': 'optimism',
-  'AVAX': 'avalanche-2',
-  'DAI': 'dai',
-  'AAVE': 'aave',
-  'SOL': 'solana',
-  'MKR': 'maker',
-  'CRV': 'curve-dao-token',
-  'CVX': 'convex-finance',
-};
-
 // Token names for display
 const TOKEN_NAMES: Record<string, string> = {
   'ETH': 'Ethereum',
@@ -76,222 +55,98 @@ const TOKEN_NAMES: Record<string, string> = {
 };
 
 // ============================================================
-// ALCHEMY PRICES API
+// MAIN PRICE FETCHER - Uses Server API Route
 // ============================================================
 
 /**
- * Fetch prices from Alchemy Prices API
- * Free tier: 300 requests/hour
- * Docs: https://docs.alchemy.com/reference/prices-api
+ * Fetch prices from Alchemy via the secure server API route
+ * ✅ Key is NEVER exposed to the client
  */
-async function fetchFromAlchemy(symbols: string[]): Promise<PriceData[]> {
-  const apiKey = process.env.ALCHEMY_API_KEY;
-  
-  if (!apiKey) {
-    console.warn('⚠️ ALCHEMY_API_KEY not set');
-    throw new Error('Alchemy API key not configured');
-  }
-
+export async function getTokenPrices(symbols: string[]): Promise<PriceData[]> {
   // Get addresses for the symbols
   const validSymbols = symbols
     .map(s => s.toUpperCase())
     .filter(s => TOKEN_ADDRESSES[s]);
 
   if (validSymbols.length === 0) {
-    throw new Error('No valid token addresses for Alchemy');
+    console.warn('⚠️ No valid token addresses found');
+    return symbols.map(s => ({
+      symbol: s.toUpperCase(),
+      name: TOKEN_NAMES[s.toUpperCase()] || s,
+      price: 0,
+      priceChange24h: 0,
+      lastUpdated: new Date().toISOString(),
+    }));
   }
 
   const addresses = validSymbols.map(s => TOKEN_ADDRESSES[s]);
-  console.log(`🔍 Fetching Alchemy prices for: ${validSymbols.join(', ')}`);
+  console.log(`🔍 Fetching prices for ${validSymbols.length} tokens via server API...`);
 
   try {
-    // Alchemy Prices API - by-address endpoint
-    // Supports batch queries with comma-separated addresses
-    const url = `https://api.g.alchemy.com/prices/v1/tokens/by-address?addresses=${addresses.join(',')}`;
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Accept': 'application/json',
-      },
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
+    // ✅ Call our secure server API route
+    // The API key is stored on the server, not in the client
+    const response = await fetch(
+      `/api/prices?addresses=${addresses.join(',')}`,
+      {
+        headers: {
+          'Accept': 'application/json',
+        },
+      }
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`Alchemy API error (${response.status}):`, errorText);
-      throw new Error(`Alchemy API error: ${response.status}`);
+      console.error(`Server API error (${response.status}):`, errorText);
+      throw new Error(`Server API error: ${response.status}`);
     }
 
     const data = await response.json();
     
-    // Parse Alchemy response
-    // Response format: { data: { [address]: { prices: [{ value, currency }] } } }
     if (!data || !data.data) {
-      throw new Error('Invalid Alchemy response');
+      throw new Error('Invalid response from server API');
     }
 
+    // Parse the response
     const results: PriceData[] = validSymbols.map((symbol) => {
       const address = TOKEN_ADDRESSES[symbol];
       const tokenData = data.data[address.toLowerCase()];
       
       let price = 0;
-      let priceChange24h = 0;
       
       if (tokenData && tokenData.prices && tokenData.prices.length > 0) {
-        // Get the latest price (usually the first one)
-        const priceInfo = tokenData.prices[0];
-        price = priceInfo.value || 0;
-        // Alchemy returns price in USD by default
+        price = tokenData.prices[0].value || 0;
       }
 
       return {
         symbol: symbol,
         name: TOKEN_NAMES[symbol] || symbol,
         price: price,
-        priceChange24h: priceChange24h,
+        priceChange24h: 0,
         lastUpdated: new Date().toISOString(),
       };
     });
 
     const hasValidPrices = results.some(p => p.price > 0);
     if (!hasValidPrices) {
-      console.warn('⚠️ Alchemy returned zero prices (rate limit or no data)');
-      throw new Error('No valid prices from Alchemy');
+      console.warn('⚠️ No valid prices returned from server API');
+      // Return zeros instead of failing
+      return results;
     }
 
-    console.log(`✅ Alchemy Prices API succeeded for ${results.filter(p => p.price > 0).length} tokens`);
+    console.log(`✅ Successfully fetched ${results.filter(p => p.price > 0).length} prices`);
     return results;
 
   } catch (error) {
-    console.error('❌ Alchemy Prices API failed:', error instanceof Error ? error.message : 'Unknown error');
-    throw error;
-  }
-}
-
-// ============================================================
-// COINGECKO API (Fallback)
-// ============================================================
-
-const COINGECKO_API = 'https://api.coingecko.com/api/v3';
-
-/**
- * Fetch prices from CoinGecko (free fallback)
- */
-async function fetchFromCoinGecko(symbols: string[]): Promise<PriceData[]> {
-  const validSymbols = symbols
-    .map(s => s.toUpperCase())
-    .filter(s => SYMBOL_TO_COINGECKO[s]);
-
-  if (validSymbols.length === 0) {
-    throw new Error('No valid CoinGecko symbols');
-  }
-
-  const ids = validSymbols.map(s => SYMBOL_TO_COINGECKO[s]).join(',');
-  console.log(`🔍 Fetching CoinGecko prices for: ${validSymbols.join(', ')}`);
-
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-    const response = await fetch(
-      `${COINGECKO_API}/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`,
-      {
-        signal: controller.signal,
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-      }
-    );
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      throw new Error(`CoinGecko API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    
-    if (!data || Object.keys(data).length === 0) {
-      throw new Error('No data from CoinGecko');
-    }
-
-    const results = validSymbols.map((symbol) => {
-      const id = SYMBOL_TO_COINGECKO[symbol];
-      const priceData = data[id];
-      
-      return {
-        symbol: symbol,
-        name: TOKEN_NAMES[symbol] || symbol,
-        price: priceData?.usd || 0,
-        priceChange24h: priceData?.usd_24h_change || 0,
-        lastUpdated: new Date().toISOString(),
-      };
-    });
-
-    const hasValidPrices = results.some(p => p.price > 0);
-    if (!hasValidPrices) {
-      throw new Error('No valid prices from CoinGecko');
-    }
-
-    console.log(`✅ CoinGecko succeeded for ${results.filter(p => p.price > 0).length} tokens`);
-    return results;
-
-  } catch (error) {
-    console.error('❌ CoinGecko failed:', error instanceof Error ? error.message : 'Unknown error');
-    throw error;
-  }
-}
-
-// ============================================================
-// MAIN FUNCTION WITH FALLBACKS
-// ============================================================
-
-/**
- * Fetch live prices with multiple fallback options
- * Order: Alchemy → CoinGecko
- * Both are free and work without API keys (CoinGecko) or with key (Alchemy)
- */
-export async function getTokenPrices(symbols: string[]): Promise<PriceData[]> {
-  const apiAttempts = [
-    { name: 'Alchemy Prices API', fn: fetchFromAlchemy },
-    { name: 'CoinGecko', fn: fetchFromCoinGecko },
-  ];
-
-  for (const attempt of apiAttempts) {
-    try {
-      console.log(`🔄 Trying ${attempt.name}...`);
-      const result = await attempt.fn(symbols);
-      
-      const hasValidPrices = result.some(p => p.price > 0);
-      if (hasValidPrices) {
-        console.log(`✅ ${attempt.name} succeeded`);
-        return result;
-      }
-    } catch (error) {
-      console.warn(`⚠️ ${attempt.name} failed:`, error instanceof Error ? error.message : 'Unknown error');
-    }
-  }
-
-  // All APIs failed - return zeros (no fallback prices)
-  console.error('❌ All price APIs failed');
-  return symbols.map(s => {
-    const upper = s.toUpperCase();
-    return {
-      symbol: upper,
-      name: TOKEN_NAMES[upper] || upper,
+    console.error('❌ Failed to fetch prices:', error);
+    // Return zeros instead of failing
+    return validSymbols.map(s => ({
+      symbol: s,
+      name: TOKEN_NAMES[s] || s,
       price: 0,
       priceChange24h: 0,
       lastUpdated: new Date().toISOString(),
-    };
-  });
+    }));
+  }
 }
 
 // ============================================================
@@ -319,7 +174,6 @@ export async function getMultipleTokenPrices(symbols: string[]): Promise<Record<
     return result;
   } catch (error) {
     console.error('❌ Failed to get token prices:', error);
-    // Return zeros instead of failing
     const result: Record<string, number> = {};
     symbols.forEach(s => {
       result[s] = 0;

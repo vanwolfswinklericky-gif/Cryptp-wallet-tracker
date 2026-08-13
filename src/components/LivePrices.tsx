@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Minus, RefreshCw } from 'lucide-react';
 import TokenLogo from './TokenLogo';
-import { getTokenPricesFromIndexer } from '@/lib/price-indexer';
+import { getMultipleTokenPrices } from '@/lib/prices';
 
 interface PriceData {
   symbol: string;
@@ -88,7 +88,7 @@ export default function LivePrices({ chain = 'ethereum', tokens = [] }: Props) {
           })
           .filter(t => t.symbol && t.address) // Remove invalid entries
           .filter(t => !isScamToken(t.symbol)) // Filter scams
-          .slice(0, 50); // Limit to 50 tokens to avoid rate limits
+          .slice(0, 50); // Limit to 50 tokens
       }
 
       // ✅ If no valid tokens, use default major tokens
@@ -107,8 +107,9 @@ export default function LivePrices({ chain = 'ethereum', tokens = [] }: Props) {
 
       console.log(`🔍 Fetching prices for ${tokenList.length} tokens...`);
 
-      // ✅ Use the PriceIndexer
-      const priceData = await getTokenPricesFromIndexer(tokenList);
+      // ✅ Use the secure server API route (via getMultipleTokenPrices)
+      const symbols = tokenList.map(t => t.symbol);
+      const priceData = await getMultipleTokenPrices(symbols);
       
       // Count how many tokens got real prices
       const validPrices = Object.values(priceData).filter(p => p > 0).length;
