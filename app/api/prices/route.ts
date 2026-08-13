@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export const runtime = 'edge';
-export const dynamic = 'force-dynamic';
-
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const addresses = searchParams.get('addresses');
@@ -19,9 +16,14 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const url = `https://api.g.alchemy.com/prices/v1/tokens/by-address?addresses=${addresses}`;
+    // ✅ Updated Alchemy Prices API v2 endpoint
+    // Uses the correct format: /prices/v2/tokens/by-address
+    const url = `https://api.g.alchemy.com/prices/v2/tokens/by-address?addresses=${addresses}`;
+    
+    console.log(`🔍 Fetching Alchemy prices for: ${addresses}`);
     
     const response = await fetch(url, {
+      method: 'GET',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Accept': 'application/json',
