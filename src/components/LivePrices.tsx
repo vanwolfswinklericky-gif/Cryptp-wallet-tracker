@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { TrendingUp, TrendingDown, Minus, RefreshCw } from 'lucide-react';
 import TokenLogo from './TokenLogo';
 import { getMultipleTokenPrices } from '@/lib/prices';
@@ -18,13 +18,16 @@ interface Props {
   tokens?: { symbol: string; address: string; name: string; contractAddress?: string }[];
 }
 
-// ✅ Known scam token symbols to filter out
+// ✅ Scam token patterns (expanded)
 const SCAM_SYMBOLS = [
-  'BLINK', 'WWW.SOFTCRYPT.COM', 'MATKA', 'CATE', 'HUB', 'SOBA', 
+  'BLINK', 'WWW.SOFTCRYPT.COM', 'MATKA', 'CATE', 'HUB', 'SOBA',
   'VITALIK', '0XWORMHOLE', 'NEIRO2.0', 'SOFTCRYPT', 'CATE.LIFE',
-  'CLAIM', 'REWARD', 'AIRDROP', 'BONUS', 'FREE', 'T.ME', 'TELEGRAM'
+  'CLAIM', 'REWARD', 'AIRDROP', 'BONUS', 'FREE', 'T.ME', 'TELEGRAM',
+  'GPT5.6', 'www.', '.com', '.life', '.today', '.link', 'PROMO',
+  'GIVEAWAY', 'WIN', 'PRIZE', 'STAKING', 'VAULT', 'POOL',
 ];
 
+// ✅ Known token names for display
 const TOKEN_NAMES: Record<string, string> = {
   'ETH': 'Ethereum',
   'MATIC': 'Polygon',
@@ -51,9 +54,9 @@ const TOKEN_NAMES: Record<string, string> = {
 // ✅ Check if a symbol is a scam token
 const isScamToken = (symbol: string): boolean => {
   if (!symbol) return true;
-  const upperSymbol = symbol.toUpperCase();
-  return SCAM_SYMBOLS.some(scam => 
-    upperSymbol.includes(scam) || scam.includes(upperSymbol)
+  const upper = symbol.toUpperCase();
+  return SCAM_SYMBOLS.some(scam =>
+    upper.includes(scam) || scam.includes(upper)
   );
 };
 
@@ -68,54 +71,70 @@ export default function LivePrices({ chain = 'ethereum', tokens = [] }: Props) {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [apiFailed, setApiFailed] = useState(false);
   const [fetchedCount, setFetchedCount] = useState(0);
+  const [retryCount, setRetryCount] = useState(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const fetchLivePrices = async () => {
+  // ✅ Build token list from props
+  const buildTokenList = useCallback(() => {
+    let tokenList: { symbol: string; address: string }[] = [];
+
+    if (tokens && tokens.length > 0) {
+      tokenList = tokens
+        .map(t => {
+          const symbol = (t.symbol || (t as any).tokenSymbol)?.toUpperCase() || '';
+          const address = (t.address || (t as any).contractAddress) || '';
+          return { symbol, address };
+        })
+        .filter(t => t.symbol && t.address)
+        .filter(t => !isScamToken(t.symbol))
+        .slice(0, 50);
+    }
+
+    // ✅ Fallback to major tokens if no valid tokens
+    if (tokenList.length === 0) {
+      tokenList = [
+        { symbol: 'ETH', address: '0x0000000000000000000000000000000000000000' },
+        { symbol: 'USDC', address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48' },
+        { symbol: 'WBTC', address: '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599' },
+        { symbol: 'LINK', address: '0x514910771af9ca656af840dff83e8264ecf986ca' },
+        { symbol: 'UNI', address: '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984' },
+        { symbol: 'MATIC', address: '0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0' },
+        { symbol: 'BNB', address: '0xb8c77482e45f1f44de1745f52c74426c631bdd52' },
+      ];
+    }
+
+    return tokenList;
+  }, [tokens]);
+
+  // ✅ Fetch prices with timeout and retry
+  const fetchLivePrices = useCallback(async () => {
+    // Cancel any ongoing request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
     if (isRefreshing) return;
     setIsRefreshing(true);
     setApiFailed(false);
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
-      // ✅ Build token list from props
-      let tokenList: { symbol: string; address: string }[] = [];
-      
-      if (tokens && tokens.length > 0) {
-        // ✅ Extract symbols and addresses from tokens
-        tokenList = tokens
-          .map(t => {
-            const symbol = (t.symbol || (t as any).tokenSymbol)?.toUpperCase() || '';
-            const address = (t.address || (t as any).contractAddress) || '';
-            return { symbol, address };
-          })
-          .filter(t => t.symbol && t.address) // Remove invalid entries
-          .filter(t => !isScamToken(t.symbol)) // Filter scams
-          .slice(0, 50); // Limit to 50 tokens
-      }
-
-      // ✅ If no valid tokens, use default major tokens
-      if (tokenList.length === 0) {
-        tokenList = [
-          { symbol: 'ETH', address: '0x0000000000000000000000000000000000000000' },
-          { symbol: 'USDC', address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48' },
-          { symbol: 'WBTC', address: '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599' },
-          { symbol: 'LINK', address: '0x514910771af9ca656af840dff83e8264ecf986ca' },
-          { symbol: 'UNI', address: '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984' },
-          { symbol: 'MATIC', address: '0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0' },
-          { symbol: 'BNB', address: '0xb8c77482e45f1f44de1745f52c74426c631bdd52' },
-        ];
-        console.log('ℹ️ No valid tokens, using default major tokens');
-      }
-
+      const tokenList = buildTokenList();
       console.log(`🔍 Fetching prices for ${tokenList.length} tokens...`);
 
-      // ✅ Use the secure server API route (via getMultipleTokenPrices)
-      const symbols = tokenList.map(t => t.symbol);
-      const priceData = await getMultipleTokenPrices(symbols);
-      
-      // Count how many tokens got real prices
+      // ✅ Call with timeout (8 seconds)
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout')), 8000);
+      });
+
+      const fetchPromise = getMultipleTokenPrices(tokenList);
+      const priceData = await Promise.race([fetchPromise, timeoutPromise]) as Record<string, number>;
+
       const validPrices = Object.values(priceData).filter(p => p > 0).length;
       setFetchedCount(validPrices);
 
-      // ✅ Format prices for display
       const formattedPrices: PriceData[] = tokenList.map(t => ({
         symbol: t.symbol,
         name: getTokenName(t.symbol),
@@ -125,33 +144,66 @@ export default function LivePrices({ chain = 'ethereum', tokens = [] }: Props) {
       }));
 
       const hasValidPrices = formattedPrices.some(p => p.price > 0);
-      
+
       if (hasValidPrices) {
         setPrices(formattedPrices);
         setApiFailed(false);
-        console.log(`✅ LivePrices updated with ${validPrices} real prices out of ${formattedPrices.length}`);
+        setRetryCount(0);
+        console.log(`✅ LivePrices updated with ${validPrices} real prices`);
       } else {
-        console.warn('⚠️ No valid prices received');
-        setPrices(formattedPrices);
-        setApiFailed(true);
+        // ✅ Retry logic - exponential backoff
+        if (retryCount < 3) {
+          console.warn(`⚠️ No valid prices, retrying (${retryCount + 1}/3)...`);
+          setRetryCount(prev => prev + 1);
+          setTimeout(() => {
+            fetchLivePrices();
+          }, Math.pow(2, retryCount) * 1000);
+        } else {
+          setPrices(formattedPrices);
+          setApiFailed(true);
+          console.warn('⚠️ No valid prices received after retries');
+        }
       }
-      
+
       setLastUpdated(new Date());
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('⏹️ Request cancelled');
+        return;
+      }
+
       console.error('❌ Failed to fetch live prices:', error);
-      setApiFailed(true);
+
+      // ✅ Retry on error
+      if (retryCount < 3) {
+        console.warn(`⚠️ Error, retrying (${retryCount + 1}/3)...`);
+        setRetryCount(prev => prev + 1);
+        setTimeout(() => {
+          fetchLivePrices();
+        }, Math.pow(2, retryCount) * 1000);
+      } else {
+        setApiFailed(true);
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
     }
-  };
+  }, [buildTokenList, retryCount]);
 
+  // ✅ Initial fetch and auto-refresh
   useEffect(() => {
     fetchLivePrices();
-    // ✅ Refresh every 60 seconds
-    const interval = setInterval(fetchLivePrices, 60000);
-    return () => clearInterval(interval);
-  }, [tokens]);
+    const interval = setInterval(fetchLivePrices, 60000); // Refresh every 60s
+    return () => {
+      clearInterval(interval);
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [tokens, fetchLivePrices]);
 
   const getChangeColor = (change: number) => {
     if (change > 0) return 'text-green-600 dark:text-green-400';
@@ -165,7 +217,7 @@ export default function LivePrices({ chain = 'ethereum', tokens = [] }: Props) {
     return <Minus className="w-3 h-3" />;
   };
 
-  // ✅ Loading state
+  // ✅ Loading state with skeleton
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -190,12 +242,12 @@ export default function LivePrices({ chain = 'ethereum', tokens = [] }: Props) {
 
   return (
     <div className="space-y-3">
-      {/* Header with status */}
+      {/* ✅ Header with status */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {apiFailed ? (
             <span className="text-[10px] text-yellow-500 dark:text-yellow-400">
-              ⚠️ Limited data
+              ⚠️ Using limited data
             </span>
           ) : (
             <span className="text-[10px] text-green-500 dark:text-green-400">
@@ -220,7 +272,7 @@ export default function LivePrices({ chain = 'ethereum', tokens = [] }: Props) {
         </div>
       </div>
 
-      {/* Price list */}
+      {/* ✅ Price list */}
       {prices.map((item) => {
         const hasPrice = item.price > 0;
         return (

@@ -1,41 +1,13 @@
 // src/lib/prices.ts
 
 // ============================================================
-// TOKEN MAPPINGS (CoinGecko IDs)
+// PRICE FETCHING - Using Contract Addresses (No Mapping!)
+// ✅ Works for ANY token on Ethereum and EVM chains
+// ✅ No manual token mapping needed
+// ✅ Handles thousands of tokens automatically
 // ============================================================
 
-const SYMBOL_TO_ID: Record<string, string> = {
-  'ETH': 'ethereum',
-  'USDC': 'usd-coin',
-  'USDT': 'tether',
-  'WBTC': 'wrapped-bitcoin',
-  'LINK': 'chainlink',
-  'UNI': 'uniswap',
-  'MATIC': 'polygon',
-  'BNB': 'binancecoin',
-  'ARB': 'arbitrum',
-  'OP': 'optimism',
-  'AVAX': 'avalanche-2',
-  'DAI': 'dai',
-  'AAVE': 'aave',
-  'SOL': 'solana',
-  'MKR': 'maker',
-  'CRV': 'curve-dao-token',
-  'CVX': 'convex-finance',
-  'BTC': 'bitcoin',
-  'DOGE': 'dogecoin',
-  'DOT': 'polkadot',
-  'ADA': 'cardano',
-  'LTC': 'litecoin',
-  'BCH': 'bitcoin-cash',
-  'XRP': 'ripple',
-  'ATOM': 'cosmos',
-  'NEAR': 'near',
-  'APT': 'aptos',
-  'SUI': 'sui',
-};
-
-// Token names for display
+// Token names for display (optional, just for UI)
 const TOKEN_NAMES: Record<string, string> = {
   'ETH': 'Ethereum',
   'USDC': 'USD Coin',
@@ -54,27 +26,17 @@ const TOKEN_NAMES: Record<string, string> = {
   'MKR': 'Maker',
   'CRV': 'Curve DAO',
   'CVX': 'Convex Finance',
-  'BTC': 'Bitcoin',
-  'DOGE': 'Dogecoin',
-  'DOT': 'Polkadot',
-  'ADA': 'Cardano',
-  'LTC': 'Litecoin',
-  'BCH': 'Bitcoin Cash',
-  'XRP': 'XRP',
-  'ATOM': 'Cosmos',
-  'NEAR': 'NEAR Protocol',
-  'APT': 'Aptos',
-  'SUI': 'Sui',
 };
 
 // ============================================================
-// SCAM TOKEN FILTER
+// SCAM TOKEN FILTER (Pattern-based)
 // ============================================================
 
 const SCAM_PATTERNS = [
   'SOFTCRYPT', 'CATE', 'NEIRO', 'BLINK', 'MATKA', 'HUB', 'SOBA',
   'VITALIK', 'WORMHOLE', 'CLAIM', 'REWARD', 'AIRDROP', 'BONUS',
   'FREE', 'TELEGRAM', 'T.ME', 'PROMO', 'GIVEAWAY', 'WIN', 'PRIZE',
+  'GPT5.6', 'www.', '.com', '.life', '.today', '.link',
 ];
 
 const isScamToken = (symbol: string): boolean => {
@@ -83,36 +45,43 @@ const isScamToken = (symbol: string): boolean => {
 };
 
 // ============================================================
-// MAIN PRICE FETCHING - CoinGecko ONLY
+// MAIN PRICE FETCHING - Address-based (No Mapping!)
 // ============================================================
 
-export async function getMultipleTokenPrices(symbols: string[]): Promise<Record<string, number>> {
+/**
+ * ✅ Get prices using token contract addresses
+ * ✅ Works for ANY token - no manual mapping needed!
+ * ✅ Uses Alchemy Prices API with CoinGecko fallback
+ */
+export async function getMultipleTokenPrices(
+  tokens: { symbol: string; address: string }[]
+): Promise<Record<string, number>> {
   const result: Record<string, number> = {};
   
-  if (!symbols || symbols.length === 0) {
-    symbols = ['ETH', 'USDC', 'WBTC', 'LINK', 'UNI', 'MATIC', 'BNB'];
+  if (!tokens || tokens.length === 0) {
+    return result;
+  }
+
+  // ✅ Filter out scam tokens and invalid addresses
+  const validTokens = tokens
+    .filter(t => t.address && t.address.startsWith('0x') && t.address.length === 42)
+    .filter(t => !isScamToken(t.symbol))
+    .slice(0, 50); // Limit to 50 tokens to avoid rate limits
+
+  if (validTokens.length === 0) {
+    console.warn('⚠️ No valid tokens for price fetch');
+    tokens.forEach(t => { result[t.symbol] = 0; });
+    return result;
   }
 
   try {
-    // Filter scam tokens and duplicates
-    const cleanSymbols = [...new Set(
-      symbols
-        .map(s => s.toUpperCase())
-        .filter(s => !isScamToken(s))
-        .filter(s => SYMBOL_TO_ID[s])
-    )];
+    // ✅ Try Alchemy first (primary)
+    const addresses = validTokens.map(t => t.address).join(',');
+    
+    console.log(`🔍 Fetching prices for ${validTokens.length} tokens via Alchemy...`);
 
-    if (cleanSymbols.length === 0) {
-      console.warn('⚠️ No valid symbols after filtering');
-      symbols.forEach(s => { result[s.toUpperCase()] = 0; });
-      return result;
-    }
-
-    console.log(`🔍 Fetching ${cleanSymbols.length} token prices via CoinGecko...`);
-
-    // ✅ ONLY CoinGecko via server API
-    const response = await fetch(
-      `/api/prices?symbols=${cleanSymbols.join(',')}`,
+    const alchemyResponse = await fetch(
+      `/api/prices?addresses=${addresses}`,
       {
         headers: { 'Accept': 'application/json' },
         cache: 'force-cache',
@@ -120,43 +89,74 @@ export async function getMultipleTokenPrices(symbols: string[]): Promise<Record<
       }
     );
 
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+    if (alchemyResponse.ok) {
+      const data = await alchemyResponse.json();
+      
+      // ✅ Map prices back to symbols
+      validTokens.forEach(token => {
+        const priceData = data.data?.[token.address.toLowerCase()];
+        result[token.symbol] = priceData?.prices?.[0]?.value || 0;
+      });
+
+      const successCount = Object.values(result).filter(v => v > 0).length;
+      console.log(`✅ Alchemy: Got ${successCount}/${validTokens.length} prices`);
+      
+      // If we got at least some prices, return them
+      if (successCount > 0) {
+        return result;
+      }
     }
 
-    const data = await response.json();
+    // ✅ Fallback to CoinGecko (if Alchemy fails)
+    console.log('🔄 Alchemy failed or returned no prices, trying CoinGecko...');
     
-    cleanSymbols.forEach(symbol => {
-      result[symbol] = data[symbol] || 0;
+    // Extract symbols for CoinGecko
+    const symbols = validTokens.map(t => t.symbol);
+    const geckoResponse = await fetch(
+      `/api/prices?symbols=${symbols.join(',')}`,
+      {
+        headers: { 'Accept': 'application/json' },
+        cache: 'force-cache',
+        next: { revalidate: 60 },
+      }
+    );
+
+    if (geckoResponse.ok) {
+      const data = await geckoResponse.json();
+      
+      symbols.forEach(symbol => {
+        result[symbol] = data[symbol] || 0;
+      });
+
+      const successCount = Object.values(result).filter(v => v > 0).length;
+      console.log(`✅ CoinGecko: Got ${successCount}/${validTokens.length} prices`);
+      return result;
+    }
+
+    // ✅ If all fails, return zeros
+    console.warn('⚠️ All price sources failed');
+    validTokens.forEach(t => {
+      result[t.symbol] = 0;
     });
-
-    const successCount = Object.values(result).filter(v => v > 0).length;
-    console.log(`✅ Got ${successCount}/${cleanSymbols.length} prices from CoinGecko`);
-
     return result;
 
   } catch (error) {
     console.error('❌ Failed to fetch prices:', error);
-    symbols.forEach(s => {
-      result[s.toUpperCase()] = 0;
+    validTokens.forEach(t => {
+      result[t.symbol] = 0;
     });
     return result;
   }
-}
-
-export async function getTokenPrice(symbol: string): Promise<number> {
-  const prices = await getMultipleTokenPrices([symbol]);
-  return prices[symbol.toUpperCase()] || 0;
 }
 
 export function getTokenName(symbol: string): string {
   return TOKEN_NAMES[symbol.toUpperCase()] || symbol;
 }
 
-export function isTokenSupported(symbol: string): boolean {
-  return symbol.toUpperCase() in SYMBOL_TO_ID;
-}
-
-export function getSupportedTokens(): string[] {
-  return Object.keys(SYMBOL_TO_ID);
+export function formatPrice(price: number): string {
+  if (price === 0) return '—';
+  if (price < 0.01) return price.toFixed(6);
+  if (price < 1) return price.toFixed(4);
+  if (price < 1000) return price.toFixed(2);
+  return price.toFixed(0);
 }
