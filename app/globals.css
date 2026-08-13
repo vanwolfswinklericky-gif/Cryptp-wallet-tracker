@@ -1,0 +1,633 @@
+\@import "tailwindcss";
+
+.cwt-page {
+  width: min(100%, 1214px);
+  margin: 0 auto;
+  padding: 0 24px 40px;
+}
+
+.cwt-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 32px 0 28px;
+  gap: 20px;
+}
+
+.cwt-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cwt-header-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1600b5;
+  margin: 0;
+}
+
+.cwt-header-subtitle {
+  font-size: 14px;
+  color: #1600b5;
+  margin: 0;
+}
+
+.cwt-header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.cwt-live-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  background: #c6c6c6;
+  font-size: 8px;
+  font-weight: 600;
+  color: #1600b5;
+}
+
+.cwt-live-badge::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #00b96b;
+}
+
+.cwt-wallet-section {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 20px;
+}
+
+.cwt-wallet-card {
+  width: 100%;
+  max-width: 644px;
+  padding: 20px 28px 24px;
+  border: 1px solid #858585;
+  border-radius: 17px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.cwt-wallet-icon {
+  width: 29px;
+  height: 29px;
+  color: #1600b5;
+  margin-bottom: 4px;
+}
+
+.cwt-wallet-title {
+  font-size: 11px;
+  font-weight: 700;
+  margin: 0 0 2px;
+  color: #111111;
+}
+
+.cwt-wallet-desc {
+  font-size: 8px;
+  color: #555555;
+  margin: 0 0 10px;
+}
+
+.cwt-wallet-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cwt-wallet-row {
+  display: flex;
+  gap: 9px;
+  width: 100%;
+}
+
+.cwt-wallet-input {
+  flex: 1;
+  height: 26px;
+  padding: 0 13px;
+  border: 1px solid #777777;
+  border-radius: 20px;
+  font-size: 7px;
+  color: #555555;
+  outline: none;
+  background: #ffffff;
+  min-width: 0;
+}
+
+.cwt-wallet-input:focus {
+  border-color: #1600b5;
+}
+
+.cwt-wallet-select {
+  width: 100px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid #777777;
+  border-radius: 20px;
+  font-size: 7px;
+  background: #ffffff;
+  color: #555555;
+  flex-shrink: 0;
+  outline: none;
+}
+
+.cwt-wallet-select:focus {
+  border-color: #1600b5;
+}
+
+.cwt-wallet-button {
+  width: 100%;
+  height: 27px;
+  border: none;
+  border-radius: 20px;
+  background: #1e0bc9;
+  color: #ffffff;
+  font-size: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cwt-wallet-button:hover {
+  background: #1600a8;
+}
+
+.cwt-wallet-supported {
+  font-size: 7px;
+  color: #777777;
+  margin: 2px 0 0;
+}
+
+.cwt-overview {
+  text-align: center;
+  padding: 24px 0 16px;
+}
+
+.cwt-overview-heading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 0 4px;
+}
+
+.cwt-overview-heading h2 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+  color: #111111;
+}
+
+.cwt-overview-pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border: 1px solid #cccccc;
+  border-radius: 10px;
+  font-size: 6px;
+  color: #777777;
+}
+
+.cwt-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+  padding: 0 0 16px;
+}
+
+.cwt-stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 20px 12px;
+  border: 1px solid #858585;
+  border-radius: 17px;
+  background: #ffffff;
+  min-height: 128px;
+}
+
+.cwt-stat-icon {
+  color: #1600b5;
+  width: 27px;
+  height: 27px;
+  margin-bottom: 4px;
+}
+
+.cwt-stat-label {
+  font-size: 9px;
+  font-weight: 600;
+  color: #555555;
+}
+
+.cwt-stat-value {
+  font-size: 11px;
+  font-weight: 700;
+  margin-top: 2px;
+  color: #111111;
+}
+
+.cwt-stat-change {
+  font-size: 9px;
+  font-weight: 700;
+  color: #1600b5;
+  margin-top: 2px;
+}
+
+.cwt-main-grid {
+  display: grid;
+  grid-template-columns: 1.78fr 1fr;
+  gap: 24px;
+  padding: 8px 0 12px;
+}
+
+.cwt-portfolio-card {
+  border: 1px solid #858585;
+  border-radius: 17px;
+  background: #ffffff;
+  padding: 16px 24px 20px;
+}
+
+.cwt-portfolio-header {
+  text-align: center;
+  margin-bottom: 6px;
+}
+
+.cwt-portfolio-header h3 {
+  font-size: 19px;
+  font-weight: 700;
+  margin: 0;
+  color: #111111;
+}
+
+.cwt-portfolio-chart {
+  width: 100%;
+  height: 215px;
+  position: relative;
+}
+
+.cwt-price-card {
+  border: 1px solid #858585;
+  border-radius: 17px;
+  background: #ffffff;
+  padding: 16px 20px 18px;
+}
+
+.cwt-price-header {
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.cwt-price-header h3 {
+  font-size: 19px;
+  font-weight: 700;
+  margin: 0;
+  color: #111111;
+}
+
+.cwt-price-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cwt-price-row {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 33px;
+}
+
+.cwt-price-icon {
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  border: 1px solid #b79b3c;
+  background: #e6d38b;
+  color: #96781a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cwt-price-name {
+  font-size: 8px;
+  font-weight: 700;
+  color: #111111;
+}
+
+.cwt-price-name span {
+  display: block;
+  font-size: 6px;
+  font-weight: 400;
+  color: #777777;
+}
+
+.cwt-price-amount {
+  font-size: 9px;
+  font-weight: 700;
+  color: #111111;
+  text-align: right;
+}
+
+.cwt-lower-grid {
+  display: grid;
+  grid-template-columns: 1fr 0.97fr;
+  gap: 24px;
+  padding: 8px 0 12px;
+}
+
+.cwt-holdings-card {
+  border: 1px solid #858585;
+  border-radius: 17px;
+  background: #ffffff;
+  padding: 16px 24px 18px;
+}
+
+.cwt-holdings-header {
+  text-align: center;
+  margin-bottom: 14px;
+}
+
+.cwt-holdings-header h3 {
+  font-size: 19px;
+  font-weight: 700;
+  margin: 0 0 2px;
+  color: #111111;
+}
+
+.cwt-holdings-header p {
+  font-size: 9px;
+  color: #555555;
+  margin: 0;
+}
+
+.cwt-holdings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cwt-holdings-row {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 39px;
+}
+
+.cwt-holdings-icon {
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  border: 1px solid #b79b3c;
+  background: #e6d38b;
+  color: #96781a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.cwt-holdings-name {
+  font-size: 9px;
+  font-weight: 700;
+  color: #111111;
+}
+
+.cwt-holdings-name span {
+  display: block;
+  font-size: 6px;
+  font-weight: 400;
+  color: #777777;
+}
+
+.cwt-holdings-value {
+  text-align: right;
+  font-size: 9px;
+  font-weight: 700;
+  color: #111111;
+}
+
+.cwt-holdings-value span {
+  display: block;
+  font-size: 6px;
+  font-weight: 400;
+  color: #777777;
+}
+
+.cwt-transactions-card {
+  border: 1px solid #858585;
+  border-radius: 17px;
+  background: #ffffff;
+  padding: 16px 24px 18px;
+}
+
+.cwt-transactions-header {
+  text-align: center;
+  margin-bottom: 14px;
+}
+
+.cwt-transactions-header h3 {
+  font-size: 19px;
+  font-weight: 700;
+  margin: 0 0 2px;
+  color: #111111;
+}
+
+.cwt-transactions-header p {
+  font-size: 9px;
+  color: #555555;
+  margin: 0;
+}
+
+.cwt-transactions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cwt-transactions-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 32px;
+  padding: 2px 0;
+}
+
+.cwt-transactions-address {
+  font-size: 8px;
+  color: #555555;
+}
+
+.cwt-transactions-amount {
+  font-size: 9px;
+  font-weight: 700;
+  color: #111111;
+}
+
+.cwt-bottom-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 256px);
+  justify-content: center;
+  gap: 20px;
+  padding: 12px 0 8px;
+}
+
+.cwt-bottom-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 20px 16px;
+  border: 1px solid #858585;
+  border-radius: 17px;
+  background: #ffffff;
+  min-height: 122px;
+}
+
+.cwt-bottom-icon {
+  color: #1600b5;
+  width: 25px;
+  height: 25px;
+  margin-bottom: 4px;
+}
+
+.cwt-bottom-label {
+  font-size: 9px;
+  color: #555555;
+}
+
+.cwt-bottom-value {
+  font-size: 10px;
+  font-weight: 700;
+  margin-top: 2px;
+  color: #111111;
+}
+
+.dark .cwt-wallet-card,
+.dark .cwt-stat-card,
+.dark .cwt-portfolio-card,
+.dark .cwt-price-card,
+.dark .cwt-holdings-card,
+.dark .cwt-transactions-card,
+.dark .cwt-bottom-card {
+  background: #1a1a2e;
+  border-color: #444466;
+}
+
+.dark .cwt-header-title,
+.dark .cwt-header-subtitle,
+.dark .cwt-overview-heading h2,
+.dark .cwt-portfolio-header h3,
+.dark .cwt-price-header h3,
+.dark .cwt-holdings-header h3,
+.dark .cwt-transactions-header h3,
+.dark .cwt-stat-value {
+  color: #eeeeff;
+}
+
+.dark .cwt-stat-label,
+.dark .cwt-bottom-label {
+  color: #9999bb;
+}
+
+.dark .cwt-live-badge {
+  background: #333355;
+  color: #8888ff;
+}
+
+.dark .cwt-wallet-input,
+.dark .cwt-wallet-select {
+  background: #222244;
+  border-color: #555577;
+  color: #eeeeff;
+}
+
+@media (max-width: 1000px) {
+  .cwt-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  .cwt-main-grid,
+  .cwt-lower-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .cwt-bottom-grid {
+    grid-template-columns: repeat(2, 256px);
+    gap: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .cwt-header {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .cwt-header-title {
+    font-size: 20px;
+  }
+  .cwt-header-subtitle {
+    font-size: 12px;
+  }
+  .cwt-wallet-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .cwt-wallet-select {
+    width: 100%;
+  }
+  .cwt-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  .cwt-main-grid,
+  .cwt-lower-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .cwt-bottom-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+}
+
+@media (max-width: 600px) {
+  .cwt-page {
+    padding: 0 16px 30px;
+  }
+  .cwt-stats-grid,
+  .cwt-main-grid,
+  .cwt-lower-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .cwt-bottom-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    max-width: 280px;
+    margin: 0 auto;
+  }
+  .cwt-header-title {
+    font-size: 18px;
+  }
+  .cwt-wallet-card {
+    max-width: 100%;
+    padding: 14px;
+  }
+}
