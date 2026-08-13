@@ -18,24 +18,6 @@ interface Props {
   tokens?: { symbol: string; address: string; name: string }[];
 }
 
-// Fallback prices
-const FALLBACK_PRICES: PriceData[] = [
-  { symbol: 'ETH', name: 'Ethereum', price: 3200, priceChange24h: 2.5, currency: 'USD' },
-  { symbol: 'MATIC', name: 'Polygon', price: 0.50, priceChange24h: -1.2, currency: 'USD' },
-  { symbol: 'BNB', name: 'BNB', price: 580, priceChange24h: 3.1, currency: 'USD' },
-  { symbol: 'ARB', name: 'Arbitrum', price: 0.75, priceChange24h: 0.8, currency: 'USD' },
-  { symbol: 'OP', name: 'Optimism', price: 1.80, priceChange24h: -0.5, currency: 'USD' },
-  { symbol: 'AVAX', name: 'Avalanche', price: 28, priceChange24h: 4.2, currency: 'USD' },
-  { symbol: 'LINK', name: 'Chainlink', price: 14, priceChange24h: 5.8, currency: 'USD' },
-  { symbol: 'UNI', name: 'Uniswap', price: 7.80, priceChange24h: -0.3, currency: 'USD' },
-  { symbol: 'USDC', name: 'USD Coin', price: 1.00, priceChange24h: 0.0, currency: 'USD' },
-  { symbol: 'USDT', name: 'Tether', price: 1.00, priceChange24h: 0.0, currency: 'USD' },
-  { symbol: 'WBTC', name: 'Wrapped Bitcoin', price: 61000, priceChange24h: 0.5, currency: 'USD' },
-  { symbol: 'DAI', name: 'Dai', price: 1.00, priceChange24h: 0.0, currency: 'USD' },
-  { symbol: 'SOL', name: 'Solana', price: 160, priceChange24h: 3.2, currency: 'USD' },
-  { symbol: 'AAVE', name: 'Aave', price: 100, priceChange24h: 2.1, currency: 'USD' },
-];
-
 // ✅ Known scam token symbols to filter out
 const SCAM_SYMBOLS = [
   'BLINK', 'WWW.SOFTCRYPT.COM', 'MATKA', 'CATE', 'HUB', 'SOBA', 
@@ -43,28 +25,25 @@ const SCAM_SYMBOLS = [
   'CLAIM', 'REWARD', 'AIRDROP', 'BONUS', 'FREE', 'T.ME', 'TELEGRAM'
 ];
 
-const getTokenName = (symbol: string): string => {
-  const names: Record<string, string> = {
-    'ETH': 'Ethereum',
-    'MATIC': 'Polygon',
-    'BNB': 'BNB',
-    'ARB': 'Arbitrum',
-    'OP': 'Optimism',
-    'AVAX': 'Avalanche',
-    'LINK': 'Chainlink',
-    'UNI': 'Uniswap',
-    'USDC': 'USD Coin',
-    'USDT': 'Tether',
-    'WBTC': 'Wrapped Bitcoin',
-    'DAI': 'Dai',
-    'SOL': 'Solana',
-    'BTC': 'Bitcoin',
-    'AAVE': 'Aave',
-    'MKR': 'Maker',
-    'CRV': 'Curve DAO',
-    'CVX': 'Convex Finance',
-  };
-  return names[symbol] || symbol;
+const TOKEN_NAMES: Record<string, string> = {
+  'ETH': 'Ethereum',
+  'MATIC': 'Polygon',
+  'BNB': 'BNB',
+  'ARB': 'Arbitrum',
+  'OP': 'Optimism',
+  'AVAX': 'Avalanche',
+  'LINK': 'Chainlink',
+  'UNI': 'Uniswap',
+  'USDC': 'USD Coin',
+  'USDT': 'Tether',
+  'WBTC': 'Wrapped Bitcoin',
+  'DAI': 'Dai',
+  'SOL': 'Solana',
+  'BTC': 'Bitcoin',
+  'AAVE': 'Aave',
+  'MKR': 'Maker',
+  'CRV': 'Curve DAO',
+  'CVX': 'Convex Finance',
 };
 
 // ✅ Check if a symbol is a scam token
@@ -73,8 +52,12 @@ const isScamToken = (symbol: string): boolean => {
   return SCAM_SYMBOLS.some(scam => upperSymbol.includes(scam) || scam.includes(upperSymbol));
 };
 
+const getTokenName = (symbol: string): string => {
+  return TOKEN_NAMES[symbol] || symbol;
+};
+
 export default function LivePrices({ chain = 'ethereum', tokens = [] }: Props) {
-  const [prices, setPrices] = useState<PriceData[]>(FALLBACK_PRICES);
+  const [prices, setPrices] = useState<PriceData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -106,35 +89,50 @@ export default function LivePrices({ chain = 'ethereum', tokens = [] }: Props) {
         }
       }
 
+      // ✅ Fetch real prices from Alchemy + CoinGecko
       const priceData = await getMultipleTokenPrices(symbols);
       
-      const formattedPrices: PriceData[] = symbols.map(symbol => ({
-        symbol,
-        name: getTokenName(symbol),
-        price: priceData[symbol] || 0,
-        priceChange24h: 0,
-        currency: 'USD',
-      }));
-
-      const hasValidPrices = formattedPrices.some(p => p.price > 0);
+      // Check if we got any valid prices
+      const hasValidPrices = Object.values(priceData).some(p => p > 0);
       
       if (hasValidPrices) {
+        const formattedPrices: PriceData[] = symbols.map(symbol => ({
+          symbol,
+          name: getTokenName(symbol),
+          price: priceData[symbol] || 0,
+          priceChange24h: 0,
+          currency: 'USD',
+        }));
+        
         setPrices(formattedPrices);
         setApiFailed(false);
         console.log('✅ LivePrices updated with real prices');
       } else {
-        console.warn('⚠️ No valid prices, using fallback');
-        // ✅ Filter fallback prices to only show requested symbols
-        const filteredFallback = FALLBACK_PRICES.filter(p => symbols.includes(p.symbol));
-        setPrices(filteredFallback.length > 0 ? filteredFallback : FALLBACK_PRICES);
+        console.warn('⚠️ No valid prices from APIs');
         setApiFailed(true);
+        // Don't set fallback prices - show zeros
+        setPrices(symbols.map(symbol => ({
+          symbol,
+          name: getTokenName(symbol),
+          price: 0,
+          priceChange24h: 0,
+          currency: 'USD',
+        })));
       }
       
       setLastUpdated(new Date());
     } catch (error) {
       console.error('❌ Failed to fetch live prices:', error);
-      setPrices(FALLBACK_PRICES);
       setApiFailed(true);
+      // Only show zeros, not fallback
+      const defaultSymbols = ['ETH', 'USDC', 'WBTC', 'LINK', 'UNI', 'MATIC', 'BNB'];
+      setPrices(defaultSymbols.map(symbol => ({
+        symbol,
+        name: getTokenName(symbol),
+        price: 0,
+        priceChange24h: 0,
+        currency: 'USD',
+      })));
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -186,7 +184,7 @@ export default function LivePrices({ chain = 'ethereum', tokens = [] }: Props) {
       <div className="flex items-center justify-between">
         {apiFailed && (
           <span className="text-[10px] text-yellow-500 dark:text-yellow-400">
-            ⚠️ Using fallback prices
+            ⚠️ Unable to fetch live prices
           </span>
         )}
         <div className="flex items-center gap-2 ml-auto">
@@ -228,9 +226,9 @@ export default function LivePrices({ chain = 'ethereum', tokens = [] }: Props) {
           </div>
           <div className="text-right">
             <p className="text-sm font-semibold text-gray-900 dark:text-white">
-              ${item.price > 0 ? item.price.toFixed(2) : '0.00'}
+              {item.price > 0 ? `$${item.price.toFixed(2)}` : 'Price unavailable'}
             </p>
-            {item.priceChange24h !== 0 && (
+            {item.priceChange24h !== 0 && item.price > 0 && (
               <div className={`flex items-center justify-end gap-1 text-xs font-medium ${getChangeColor(item.priceChange24h)}`}>
                 {getChangeIcon(item.priceChange24h)}
                 {Math.abs(item.priceChange24h).toFixed(2)}%
