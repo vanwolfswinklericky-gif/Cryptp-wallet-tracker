@@ -12,9 +12,10 @@ export default function ThemeToggle() {
     setMounted(true);
   }, []);
 
+  // ✅ During static generation (SSG), show placeholder
   if (!mounted) {
     return (
-      <button className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white w-9 h-9">
+      <button className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white w-9 h-9 flex items-center justify-center">
         <div className="w-4 h-4" />
       </button>
     );

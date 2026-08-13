@@ -16,6 +16,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // ✅ Only run on client side
     setMounted(true);
     const stored = localStorage.getItem('theme') as Theme | null;
     const systemPreference = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -31,8 +32,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.classList.toggle('dark', newTheme === 'dark');
   };
 
-  if (!mounted) return <>{children}</>;
-
+  // ✅ Always render children, but provider value only works after mount
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
       {children}
