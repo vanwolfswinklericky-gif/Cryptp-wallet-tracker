@@ -34,6 +34,8 @@ import DeFiPositions from '@/components/defi/DeFiPositions';
 import PerformanceMetrics from '@/components/dashboard/PerformanceMetrics';
 
 export default function Home() {
+  console.log('🚀 Crypto Wallet Tracker v2.0 - 6 Tabs Loaded');
+
   const [address, setAddress] = useState('');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -179,7 +181,12 @@ export default function Home() {
       {/* Header */}
       <header className="cwt-header">
         <div className="cwt-header-left">
-          <h1 className="cwt-header-title">CRYPTO WALLET TRACKER</h1>
+          <h1 className="cwt-header-title">
+            CRYPTO WALLET TRACKER
+            <span style={{ fontSize: '12px', fontWeight: 'normal', color: '#3b82f6', marginLeft: '8px' }}>
+              v2.0 • 6 Tabs
+            </span>
+          </h1>
           <p className="cwt-header-subtitle">
             Track balances, tokens, transactions, and portfolio activities.
           </p>
@@ -339,6 +346,10 @@ export default function Home() {
                 </button>
               );
             })}
+            {/* Version badge */}
+            <div className="flex items-center ml-2 px-2 py-1 text-[10px] text-gray-400 dark:text-gray-500 border-l border-gray-200 dark:border-gray-700">
+              v2.0
+            </div>
           </div>
 
           {/* Tab Content */}
