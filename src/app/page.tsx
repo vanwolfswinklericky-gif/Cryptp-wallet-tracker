@@ -15,6 +15,8 @@ import {
   Image,
   Layers,
   Clock,
+  PieChart,
+  Gauge,
 } from 'lucide-react';
 
 import DashboardLayout from '@/components/DashboardLayout';
@@ -29,6 +31,8 @@ import AssetAllocation from '@/components/AssetAllocation';
 import NFTGallery from '@/components/nft/NFTGallery';
 import NFTStats from '@/components/nft/NFTStats';
 import PortfolioHistory from '@/components/dashboard/PortfolioHistory';
+import DeFiPositions from '@/components/defi/DeFiPositions';
+import PerformanceMetrics from '@/components/dashboard/PerformanceMetrics';
 
 export default function Home() {
   const [address, setAddress] = useState('');
@@ -39,7 +43,7 @@ export default function Home() {
   const [allocation, setAllocation] = useState<{ name: string; value: number; color: string }[]>([]);
   const [showNFTs, setShowNFTs] = useState(true);
   const [hasNFTs, setHasNFTs] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'tokens' | 'nfts' | 'history'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'tokens' | 'defi' | 'nfts' | 'history' | 'performance'>('overview');
 
   // Build chart data from transactions
   const buildChartData = useCallback((transactions: any[], walletAddress: string, currentBalance: number) => {
@@ -294,26 +298,30 @@ export default function Home() {
             </div>
           </div>
 
-          {/* ✅ VISIBLE TABS - Enhanced with icons and badges */}
-          <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 max-w-2xl mx-auto mt-8 mb-6">
-            {(['overview', 'tokens', 'nfts', 'history'] as const).map((tab) => {
+          {/* ✅ Enhanced Tabs with all features */}
+          <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 max-w-3xl mx-auto mt-8 mb-6 overflow-x-auto">
+            {(['overview', 'tokens', 'defi', 'nfts', 'history', 'performance'] as const).map((tab) => {
               const icons = {
                 overview: <BarChart3 className="w-4 h-4" />,
                 tokens: <Coins className="w-4 h-4" />,
+                defi: <Layers className="w-4 h-4" />,
                 nfts: <Image className="w-4 h-4" />,
                 history: <Clock className="w-4 h-4" />,
+                performance: <Gauge className="w-4 h-4" />,
               };
               const labels = {
                 overview: 'Overview',
                 tokens: 'Tokens',
+                defi: 'DeFi',
                 nfts: 'NFTs',
                 history: 'History',
+                performance: 'Performance',
               };
               return (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all duration-200 whitespace-nowrap ${
                     activeTab === tab
                       ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-md ring-1 ring-blue-500/20'
                       : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-gray-700/50'
@@ -322,10 +330,17 @@ export default function Home() {
                   {icons[tab]}
                   {labels[tab]}
                   {tab === 'nfts' && hasNFTs && (
-                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                   )}
-                  {tab === 'nfts' && !hasNFTs && (
-                    <span className="w-2 h-2 rounded-full bg-gray-300" />
+                  {tab === 'defi' && (
+                    <span className="text-[8px] bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 rounded-full">
+                      NEW
+                    </span>
+                  )}
+                  {tab === 'performance' && (
+                    <span className="text-[8px] bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded-full">
+                      PnL
+                    </span>
                   )}
                 </button>
               );
@@ -430,7 +445,17 @@ export default function Home() {
               </div>
             )}
 
-            {/* NFTs Tab - Same as Overview but focused */}
+            {/* DeFi Tab */}
+            {activeTab === 'defi' && (
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  DeFi Positions
+                </h3>
+                <DeFiPositions address={address} chain={data?.chain || 'ethereum'} />
+              </div>
+            )}
+
+            {/* NFTs Tab */}
             {activeTab === 'nfts' && (
               <div className="space-y-4">
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
@@ -449,6 +474,16 @@ export default function Home() {
                   Portfolio History
                 </h3>
                 <PortfolioHistory address={address} chain={data?.chain || 'ethereum'} />
+              </div>
+            )}
+
+            {/* Performance Tab */}
+            {activeTab === 'performance' && (
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  Performance & PnL
+                </h3>
+                <PerformanceMetrics address={address} chain={data?.chain || 'ethereum'} />
               </div>
             )}
           </div>
