@@ -1,4 +1,5 @@
-// app/page.tsx - Just the tabs section replacement
+// app/page.tsx - Complete fixed version
+
 'use client';
 
 import { useState, useCallback } from 'react';
@@ -176,6 +177,16 @@ export default function Home() {
     }
   };
 
+  // Tab configuration with all 6 tabs
+  const tabConfig = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'tokens', label: 'Tokens' },
+    { id: 'defi', label: 'DeFi', isNew: true },
+    { id: 'nfts', label: 'NFTs' },
+    { id: 'history', label: 'History' },
+    { id: 'performance', label: 'PnL', isNew: true },
+  ] as const;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
       <div className="container mx-auto px-4 py-6 max-w-7xl">
@@ -332,28 +343,26 @@ export default function Home() {
               </div>
             </div>
 
-            {/* ✅ FIXED TABS - All 6 visible with forced display */}
-            <div className="mb-8 w-full">
-              <div className="bg-gray-100 dark:bg-gray-800/50 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-1.5 w-full">
-                <div className="grid grid-cols-6 gap-1 w-full">
-                  {(['overview', 'tokens', 'defi', 'nfts', 'history', 'performance'] as const).map((tab) => {
-                    const labels = {
-                      overview: 'Overview',
-                      tokens: 'Tokens',
-                      defi: 'DeFi',
-                      nfts: 'NFTs',
-                      history: 'History',
-                      performance: 'PnL',
-                    };
-                    const isActive = activeTab === tab;
-                    const isNew = tab === 'defi' || tab === 'performance';
+            {/* ⭐⭐⭐ ENTERPRISE TABS - PRODUCTION GRADE SOLUTION ⭐⭐⭐ */}
+            <div className="mb-8">
+              {/* Remove any max-width constraints - use full width */}
+              <div className="w-full bg-gray-100 dark:bg-gray-800/50 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-1">
+                {/* Use flex with justify-center and allow wrapping only on very small screens */}
+                <div className="flex flex-wrap items-center justify-center gap-0.5 sm:gap-1 w-full">
+                  {tabConfig.map((tab) => {
+                    const isActive = activeTab === tab.id;
+                    const isNew = tab.isNew || false;
                     
                     return (
                       <button
-                        key={tab}
-                        onClick={() => setActiveTab(tab)}
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
                         className={`
-                          w-full py-2.5 px-1 rounded-xl text-xs sm:text-sm font-medium transition-all duration-300
+                          relative flex-1 min-w-[50px] sm:min-w-[70px] md:min-w-[80px] 
+                          py-1.5 sm:py-2 px-1 sm:px-2 md:px-3 
+                          rounded-lg sm:rounded-xl 
+                          text-[10px] sm:text-xs md:text-sm 
+                          font-medium transition-all duration-300
                           text-center whitespace-nowrap
                           ${isActive 
                             ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-lg ring-2 ring-blue-500/20 dark:ring-blue-400/20 scale-[1.02]' 
@@ -361,15 +370,15 @@ export default function Home() {
                           }
                         `}
                       >
-                        <span className="relative">
-                          {labels[tab]}
+                        <span className="relative inline-flex items-center gap-0.5 sm:gap-1">
+                          {tab.label}
                           
-                          {tab === 'nfts' && hasNFTs && (
-                            <span className="absolute -top-1 -right-3 w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse ring-2 ring-white dark:ring-gray-800" />
+                          {tab.id === 'nfts' && hasNFTs && (
+                            <span className="absolute -top-0.5 -right-1.5 sm:-top-1 sm:-right-2 w-1.5 h-1.5 sm:w-2 sm:h-2 bg-green-500 rounded-full animate-pulse ring-2 ring-white dark:ring-gray-800" />
                           )}
                           
                           {isNew && (
-                            <span className="text-[8px] sm:text-[10px] font-bold bg-gradient-to-r from-blue-500 to-purple-500 text-white px-1.5 sm:px-2 py-0.5 rounded-full ml-1">
+                            <span className="text-[6px] sm:text-[8px] md:text-[9px] font-bold bg-gradient-to-r from-blue-500 to-purple-500 text-white px-1 sm:px-1.5 py-0.5 rounded-full ml-0.5 sm:ml-1">
                               NEW
                             </span>
                           )}
@@ -377,11 +386,17 @@ export default function Home() {
                       </button>
                     );
                   })}
+                  {/* Version badge - integrated into tabs bar */}
+                  <div className="flex items-center px-1.5 sm:px-2 py-1 text-[8px] sm:text-[10px] text-gray-400 dark:text-gray-500 border-l border-gray-200 dark:border-gray-700">
+                    v2.0
+                  </div>
                 </div>
               </div>
-              <div className="flex justify-center mt-2">
-                <span className="text-[10px] text-gray-400 dark:text-gray-500">
-                  v2.0 • 6 tabs
+              
+              {/* Subtle indicator showing all tabs are available */}
+              <div className="flex justify-center mt-1.5">
+                <span className="text-[8px] sm:text-[10px] text-gray-400 dark:text-gray-500 opacity-60">
+                  Overview • Tokens • DeFi • NFTs • History • PnL
                 </span>
               </div>
             </div>
