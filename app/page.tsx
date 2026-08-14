@@ -1,3 +1,4 @@
+// app/page.tsx
 'use client';
 
 import { useState, useCallback } from 'react';
@@ -9,8 +10,11 @@ import {
   Loader2,
   Wallet,
   TrendingUp,
+  TrendingDown,
   ArrowUpRight,
   Image,
+  Layers,
+  Clock,
 } from 'lucide-react';
 
 import DashboardLayout from '@/components/DashboardLayout';
@@ -24,6 +28,7 @@ import ThemeToggle from '@/components/ThemeToggle';
 import AssetAllocation from '@/components/AssetAllocation';
 import NFTGallery from '@/components/nft/NFTGallery';
 import NFTStats from '@/components/nft/NFTStats';
+import PortfolioHistory from '@/components/dashboard/PortfolioHistory';
 
 export default function Home() {
   const [address, setAddress] = useState('');
@@ -34,6 +39,7 @@ export default function Home() {
   const [allocation, setAllocation] = useState<{ name: string; value: number; color: string }[]>([]);
   const [showNFTs, setShowNFTs] = useState(true);
   const [hasNFTs, setHasNFTs] = useState(false);
+  const [activeTab, setActiveTab] = useState<'overview' | 'tokens' | 'nfts' | 'history'>('overview');
 
   // Build chart data from transactions
   const buildChartData = useCallback((transactions: any[], walletAddress: string, currentBalance: number) => {
@@ -195,7 +201,7 @@ export default function Home() {
           <p className="cwt-wallet-desc">
             Enter a wallet address to view its portfolio and activity.
           </p>
-          <WalletInput onAddressSubmit={handleAddressSubmit} />
+          <WalletInput onAddressSubmit={handleAddressSubmit} isLoading={loading} />
           <p className="cwt-wallet-supported">
             Supports: Ethereum, Polygon, BSC, Arbitrum, Optimism, Avalanche, Base
           </p>
@@ -262,7 +268,7 @@ export default function Home() {
 
             <div className="cwt-stat-card">
               <div className="cwt-stat-icon">
-                <TrendingUp className="w-full h-full" />
+                <Activity className="w-full h-full" />
               </div>
               <div className="cwt-stat-label">Transactions</div>
               <div className="cwt-stat-value">{data.transactions?.length || 0}</div>
@@ -278,7 +284,7 @@ export default function Home() {
 
             <div className="cwt-stat-card">
               <div className="cwt-stat-icon">
-                <Activity className="w-full h-full" />
+                <TrendingUp className="w-full h-full" />
               </div>
               <div className="cwt-stat-label">Balance ({data.chainName || 'Ethereum'})</div>
               <div className="cwt-stat-value">
@@ -288,80 +294,108 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Main Grid */}
-          <div className="cwt-main-grid">
-            <div className="cwt-portfolio-card">
-              <div className="cwt-portfolio-header">
-                <h3>
-                  Portfolio Value
-                  <span> (30 days Value Performance)</span>
-                </h3>
-              </div>
-              <div className="cwt-portfolio-chart">
-                <PortfolioChart data={chartData} isLoading={loading} />
-              </div>
-            </div>
-
-            <div className="cwt-price-card">
-              <div className="cwt-price-header">
-                <h3>Live Price</h3>
-              </div>
-              <LivePrices chain={data?.chain || 'ethereum'} tokens={data?.tokens || []} />
-            </div>
-          </div>
-
-          {/* Lower Grid */}
-          <div className="cwt-lower-grid">
-            <div className="cwt-holdings-card">
-              <div className="cwt-holdings-header">
-                <h3>Token Holdings</h3>
-                <p>{data.tokens?.length || 0} Assets</p>
-              </div>
-              <TokenHoldings tokens={data.tokens || []} chain={data?.chain || 'ethereum'} />
-            </div>
-
-            <div className="cwt-transactions-card">
-              <div className="cwt-transactions-header">
-                <h3>Recent Transactions</h3>
-                <p>{data.transactions?.length || 0} total</p>
-              </div>
-              <RecentTransactions transactions={data.transactions || []} />
-            </div>
-          </div>
-
-          {/* ✅ NFT Section - Clean Integration */}
-          <div className="mt-8">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
-                  <Image className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                </div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  NFT Gallery
-                </h2>
-                {hasNFTs && (
-                  <span className="text-xs px-2 py-0.5 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-full">
-                    {data.chainName || 'Ethereum'}
-                  </span>
-                )}
-              </div>
+          {/* Tabs */}
+          <div className="flex gap-2 mb-6 border-b border-gray-200 dark:border-gray-700">
+            {(['overview', 'tokens', 'nfts', 'history'] as const).map((tab) => (
               <button
-                onClick={() => setShowNFTs(!showNFTs)}
-                className="text-sm text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 transition-colors"
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+                  activeTab === tab
+                    ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                }`}
               >
-                {showNFTs ? 'Hide' : 'Show'} NFTs
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
               </button>
-            </div>
+            ))}
+          </div>
 
-            {showNFTs && (
+          {/* Tab Content */}
+          <div className="space-y-6">
+            {/* Overview Tab */}
+            {activeTab === 'overview' && (
+              <>
+                {/* Main Grid - Chart and Prices */}
+                <div className="cwt-main-grid">
+                  <div className="cwt-portfolio-card">
+                    <div className="cwt-portfolio-header">
+                      <h3>
+                        Portfolio Value
+                        <span> (30 days Value Performance)</span>
+                      </h3>
+                    </div>
+                    <div className="cwt-portfolio-chart">
+                      <PortfolioChart data={chartData} isLoading={loading} />
+                    </div>
+                  </div>
+
+                  <div className="cwt-price-card">
+                    <div className="cwt-price-header">
+                      <h3>Live Price</h3>
+                    </div>
+                    <LivePrices chain={data?.chain || 'ethereum'} tokens={data?.tokens || []} />
+                  </div>
+                </div>
+
+                {/* Lower Grid - Holdings and Transactions */}
+                <div className="cwt-lower-grid">
+                  <div className="cwt-holdings-card">
+                    <div className="cwt-holdings-header">
+                      <h3>Token Holdings</h3>
+                      <p>{data.tokens?.length || 0} Assets</p>
+                    </div>
+                    <TokenHoldings tokens={data.tokens || []} chain={data?.chain || 'ethereum'} />
+                  </div>
+
+                  <div className="cwt-transactions-card">
+                    <div className="cwt-transactions-header">
+                      <h3>Recent Transactions</h3>
+                      <p>{data.transactions?.length || 0} total</p>
+                    </div>
+                    <RecentTransactions transactions={data.transactions || []} />
+                  </div>
+                </div>
+
+                {/* Asset Allocation */}
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                    Asset Allocation
+                  </h3>
+                  <AssetAllocation allocation={allocation} isLoading={loading} />
+                </div>
+              </>
+            )}
+
+            {/* Tokens Tab */}
+            {activeTab === 'tokens' && (
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  Token Holdings
+                </h3>
+                <TokenHoldings tokens={data.tokens || []} chain={data?.chain || 'ethereum'} />
+              </div>
+            )}
+
+            {/* NFTs Tab */}
+            {activeTab === 'nfts' && (
               <div className="space-y-4">
-                {/* ✅ NFT Stats */}
-                <NFTStats address={address} chain={data?.chain || 'ethereum'} />
-                
-                {/* ✅ NFT Gallery */}
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                  <NFTStats address={address} chain={data?.chain || 'ethereum'} />
+                </div>
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 sm:p-6">
                   <NFTGallery address={address} chain={data?.chain || 'ethereum'} />
                 </div>
+              </div>
+            )}
+
+            {/* History Tab */}
+            {activeTab === 'history' && (
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  Portfolio History
+                </h3>
+                <PortfolioHistory address={address} chain={data?.chain || 'ethereum'} />
               </div>
             )}
           </div>
