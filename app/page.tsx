@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Activity,
   AlertCircle,
@@ -10,6 +10,7 @@ import {
   Wallet,
   TrendingUp,
   ArrowUpRight,
+  Image,
 } from 'lucide-react';
 
 import DashboardLayout from '@/components/DashboardLayout';
@@ -21,6 +22,8 @@ import PortfolioChart from '@/components/PortfolioChart';
 import LivePrices from '@/components/LivePrices';
 import ThemeToggle from '@/components/ThemeToggle';
 import AssetAllocation from '@/components/AssetAllocation';
+import NFTGallery from '@/components/nft/NFTGallery';
+import NFTStats from '@/components/nft/NFTStats';
 
 export default function Home() {
   const [address, setAddress] = useState('');
@@ -29,9 +32,11 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [chartData, setChartData] = useState<{ date: string; value: number }[]>([]);
   const [allocation, setAllocation] = useState<{ name: string; value: number; color: string }[]>([]);
+  const [showNFTs, setShowNFTs] = useState(true);
+  const [hasNFTs, setHasNFTs] = useState(false);
 
   // Build chart data from transactions
-  const buildChartData = (transactions: any[], walletAddress: string, currentBalance: number) => {
+  const buildChartData = useCallback((transactions: any[], walletAddress: string, currentBalance: number) => {
     console.log('📊 Building chart data...');
     console.log('💰 Current balance:', currentBalance);
     
@@ -77,10 +82,10 @@ export default function Home() {
     
     console.log('✅ Chart data built (transaction-based):', result.length, 'points');
     return result;
-  };
+  }, []);
 
   // Build asset allocation from tokens
-  const buildAllocation = (tokens: any[]) => {
+  const buildAllocation = useCallback((tokens: any[]) => {
     if (!tokens || tokens.length === 0) {
       return [
         { name: 'ETH', value: 100, color: '#627EEA' }
@@ -107,7 +112,7 @@ export default function Home() {
         color: colors[index % colors.length]
       };
     });
-  };
+  }, []);
 
   const handleAddressSubmit = async (addr: string, chain: string) => {
     setLoading(true);
@@ -140,6 +145,16 @@ export default function Home() {
       const allocationData = buildAllocation(result.tokens);
       setAllocation(allocationData);
       
+      // ✅ Check if wallet has NFTs
+      try {
+        const nftCheck = await fetch(`/api/nft/has?address=${addr}&chain=${chain}`);
+        const nftData = await nftCheck.json();
+        setHasNFTs(nftData.hasNFTs || false);
+      } catch (nftError) {
+        console.log('NFT check failed:', nftError);
+        setHasNFTs(false);
+      }
+      
     } catch (err) {
       console.error('❌ Error fetching wallet data:', err);
       setError(
@@ -152,6 +167,7 @@ export default function Home() {
 
   return (
     <div className="cwt-page">
+      {/* Header */}
       <header className="cwt-header">
         <div className="cwt-header-left">
           <h1 className="cwt-header-title">CRYPTO WALLET TRACKER</h1>
@@ -165,6 +181,7 @@ export default function Home() {
         </div>
       </header>
 
+      {/* Wallet Input */}
       <section className="cwt-wallet-section">
         <div className="cwt-wallet-card">
           <div className="cwt-wallet-icon">
@@ -185,6 +202,7 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Loading */}
       {loading && (
         <div className="flex justify-center py-8">
           <div className="flex items-center gap-3 rounded-2xl border border-gray-300 bg-white px-6 py-4 shadow-sm dark:border-gray-600 dark:bg-gray-800">
@@ -201,6 +219,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* Error */}
       {error && !loading && (
         <div className="flex justify-center py-4">
           <div className="flex w-full max-w-2xl items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950/20">
@@ -215,8 +234,10 @@ export default function Home() {
         </div>
       )}
 
+      {/* Dashboard */}
       {data && !loading && (
         <>
+          {/* Overview */}
           <div className="cwt-overview">
             <div className="cwt-overview-heading">
               <BarChart3 className="cwt-overview-icon" />
@@ -227,6 +248,7 @@ export default function Home() {
             )}
           </div>
 
+          {/* Stats Grid */}
           <div className="cwt-stats-grid">
             <div className="cwt-stat-card">
               <div className="cwt-stat-icon">
@@ -266,6 +288,7 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Main Grid */}
           <div className="cwt-main-grid">
             <div className="cwt-portfolio-card">
               <div className="cwt-portfolio-header">
@@ -287,6 +310,7 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Lower Grid */}
           <div className="cwt-lower-grid">
             <div className="cwt-holdings-card">
               <div className="cwt-holdings-header">
@@ -305,6 +329,44 @@ export default function Home() {
             </div>
           </div>
 
+          {/* ✅ NFT Section - Clean Integration */}
+          <div className="mt-8">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
+                  <Image className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                </div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  NFT Gallery
+                </h2>
+                {hasNFTs && (
+                  <span className="text-xs px-2 py-0.5 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-full">
+                    {data.chainName || 'Ethereum'}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setShowNFTs(!showNFTs)}
+                className="text-sm text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 transition-colors"
+              >
+                {showNFTs ? 'Hide' : 'Show'} NFTs
+              </button>
+            </div>
+
+            {showNFTs && (
+              <div className="space-y-4">
+                {/* ✅ NFT Stats */}
+                <NFTStats address={address} chain={data?.chain || 'ethereum'} />
+                
+                {/* ✅ NFT Gallery */}
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 sm:p-6">
+                  <NFTGallery address={address} chain={data?.chain || 'ethereum'} />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Bottom Grid */}
           <div className="cwt-bottom-grid">
             <div className="cwt-bottom-card">
               <div className="cwt-bottom-icon">
