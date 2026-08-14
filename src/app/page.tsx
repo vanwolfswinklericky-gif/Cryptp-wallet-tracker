@@ -176,351 +176,406 @@ export default function Home() {
     }
   };
 
+  // Tab configuration
+  const tabs = [
+    { id: 'overview', label: 'Overview', icon: BarChart3 },
+    { id: 'tokens', label: 'Tokens', icon: Coins },
+    { id: 'defi', label: 'DeFi', icon: Layers },
+    { id: 'nfts', label: 'NFTs', icon: Image },
+    { id: 'history', label: 'History', icon: Clock },
+    { id: 'performance', label: 'PnL', icon: Gauge },
+  ] as const;
+
   return (
-    <div className="cwt-page">
-      {/* Header */}
-      <header className="cwt-header">
-        <div className="cwt-header-left">
-          <h1 className="cwt-header-title">
-            CRYPTO WALLET TRACKER
-            <span style={{ fontSize: '12px', fontWeight: 'normal', color: '#3b82f6', marginLeft: '8px' }}>
-              v2.0 • 6 Tabs
-            </span>
-          </h1>
-          <p className="cwt-header-subtitle">
-            Track balances, tokens, transactions, and portfolio activities.
-          </p>
-        </div>
-        <div className="cwt-header-right">
-          <div className="cwt-live-badge">Live</div>
-          <ThemeToggle />
-        </div>
-      </header>
-
-      {/* Wallet Input */}
-      <section className="cwt-wallet-section">
-        <div className="cwt-wallet-card">
-          <div className="cwt-wallet-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
-              <path d="M4 7h15a2 2 0 0 1 2 2v10H4a2 2 0 0 1-2-2V7Z" />
-              <path d="M4 7V5a2 2 0 0 1 2-2h13v4" />
-              <path d="M16 13h5" />
-            </svg>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+      <div className="container mx-auto px-4 py-6 max-w-7xl">
+        {/* Header */}
+        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8 pb-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex-1">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+              <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                CRYPTO WALLET TRACKER
+              </span>
+              <span className="text-xs font-normal text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-full">
+                v2.0 • 6 Tabs
+              </span>
+            </h1>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Track balances, tokens, transactions, and portfolio activities across multiple chains.
+            </p>
           </div>
-          <h2 className="cwt-wallet-title">Track a wallet</h2>
-          <p className="cwt-wallet-desc">
-            Enter a wallet address to view its portfolio and activity.
-          </p>
-          <WalletInput onAddressSubmit={handleAddressSubmit} isLoading={loading} />
-          <p className="cwt-wallet-supported">
-            Supports: Ethereum, Polygon, BSC, Arbitrum, Optimism, Avalanche, Base
-          </p>
-        </div>
-      </section>
-
-      {/* Loading */}
-      {loading && (
-        <div className="flex justify-center py-8">
-          <div className="flex items-center gap-3 rounded-2xl border border-gray-300 bg-white px-6 py-4 shadow-sm dark:border-gray-600 dark:bg-gray-800">
-            <Loader2 className="h-5 w-5 animate-spin text-blue-600 dark:text-blue-400" />
-            <div>
-              <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                Loading wallet data
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Fetching balances and transactions...
-              </p>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 rounded-full">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              <span className="text-xs font-medium text-green-700 dark:text-green-300">Live</span>
             </div>
+            <ThemeToggle />
           </div>
-        </div>
-      )}
+        </header>
 
-      {/* Error */}
-      {error && !loading && (
-        <div className="flex justify-center py-4">
-          <div className="flex w-full max-w-2xl items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950/20">
-            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />
-            <div>
-              <p className="text-sm font-semibold text-red-800 dark:text-red-300">
-                Unable to load wallet
-              </p>
-              <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Dashboard */}
-      {data && !loading && (
-        <>
-          {/* Overview */}
-          <div className="cwt-overview">
-            <div className="cwt-overview-heading">
-              <BarChart3 className="cwt-overview-icon" />
-              <h2>WALLET OVERVIEW</h2>
-            </div>
-            {data.chainName && (
-              <span className="cwt-overview-pill">{data.chainName}</span>
-            )}
-          </div>
-
-          {/* Stats Grid */}
-          <div className="cwt-stats-grid">
-            <div className="cwt-stat-card">
-              <div className="cwt-stat-icon">
-                <Wallet className="w-full h-full" />
+        {/* Wallet Input */}
+        <section className="mb-8">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-6 sm:p-8 transition-all hover:shadow-2xl">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-xl">
+                <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M4 7h15a2 2 0 0 1 2 2v10H4a2 2 0 0 1-2-2V7Z" />
+                  <path d="M4 7V5a2 2 0 0 1 2-2h13v4" />
+                  <path d="M16 13h5" />
+                </svg>
               </div>
-              <div className="cwt-stat-label">Wallet Address</div>
-              <div className="cwt-stat-value">
-                {address.slice(0, 6)}...{address.slice(-4)}
-              </div>
-            </div>
-
-            <div className="cwt-stat-card">
-              <div className="cwt-stat-icon">
-                <Activity className="w-full h-full" />
-              </div>
-              <div className="cwt-stat-label">Transactions</div>
-              <div className="cwt-stat-value">{data.transactions?.length || 0}</div>
-            </div>
-
-            <div className="cwt-stat-card">
-              <div className="cwt-stat-icon">
-                <Coins className="w-full h-full" />
-              </div>
-              <div className="cwt-stat-label">Tokens</div>
-              <div className="cwt-stat-value">{data.tokens?.length || 0}</div>
-            </div>
-
-            <div className="cwt-stat-card">
-              <div className="cwt-stat-icon">
-                <TrendingUp className="w-full h-full" />
-              </div>
-              <div className="cwt-stat-label">Balance ({data.chainName || 'Ethereum'})</div>
-              <div className="cwt-stat-value">
-                {(data.balance || 0).toFixed(4)} {data.symbol || 'ETH'}
-              </div>
-              <div className="cwt-stat-change">+2.5%</div>
-            </div>
-          </div>
-
-          {/* ✅ Tabs - All 6 tabs including DeFi and Performance */}
-          <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 max-w-3xl mx-auto mt-8 mb-6 overflow-x-auto">
-            {(['overview', 'tokens', 'defi', 'nfts', 'history', 'performance'] as const).map((tab) => {
-              const icons = {
-                overview: <BarChart3 className="w-4 h-4" />,
-                tokens: <Coins className="w-4 h-4" />,
-                defi: <Layers className="w-4 h-4" />,
-                nfts: <Image className="w-4 h-4" />,
-                history: <Clock className="w-4 h-4" />,
-                performance: <Gauge className="w-4 h-4" />,
-              };
-              const labels = {
-                overview: 'Overview',
-                tokens: 'Tokens',
-                defi: 'DeFi',
-                nfts: 'NFTs',
-                history: 'History',
-                performance: 'PnL',
-              };
-              return (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all duration-200 whitespace-nowrap ${
-                    activeTab === tab
-                      ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-md ring-1 ring-blue-500/20'
-                      : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-gray-700/50'
-                  }`}
-                >
-                  {icons[tab]}
-                  {labels[tab]}
-                  {tab === 'nfts' && hasNFTs && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                  )}
-                  {(tab === 'defi' || tab === 'performance') && (
-                    <span className="text-[8px] bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded-full">
-                      NEW
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-            {/* Version badge */}
-            <div className="flex items-center ml-2 px-2 py-1 text-[10px] text-gray-400 dark:text-gray-500 border-l border-gray-200 dark:border-gray-700">
-              v2.0
-            </div>
-          </div>
-
-          {/* Tab Content */}
-          <div className="space-y-6">
-            {/* Overview Tab - Shows EVERYTHING */}
-            {activeTab === 'overview' && (
-              <>
-                {/* Main Grid - Chart and Prices */}
-                <div className="cwt-main-grid">
-                  <div className="cwt-portfolio-card">
-                    <div className="cwt-portfolio-header">
-                      <h3>
-                        Portfolio Value
-                        <span> (30 days Value Performance)</span>
-                      </h3>
-                    </div>
-                    <div className="cwt-portfolio-chart">
-                      <PortfolioChart data={chartData} isLoading={loading} />
-                    </div>
-                  </div>
-
-                  <div className="cwt-price-card">
-                    <div className="cwt-price-header">
-                      <h3>Live Price</h3>
-                    </div>
-                    <LivePrices chain={data?.chain || 'ethereum'} tokens={data?.tokens || []} />
-                  </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Track a wallet</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Enter a wallet address to view its portfolio and activity across multiple chains.
+                </p>
+                <div className="mt-4">
+                  <WalletInput onAddressSubmit={handleAddressSubmit} isLoading={loading} />
                 </div>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {['Ethereum', 'Polygon', 'BSC', 'Arbitrum', 'Optimism', 'Avalanche', 'Base'].map((chain) => (
+                    <span key={chain} className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full">
+                      {chain}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
-                {/* ✅ NFT Gallery - NOW IN OVERVIEW */}
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 sm:p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
-                        <Image className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                      </div>
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                        NFT Gallery
-                      </h3>
-                      {hasNFTs && (
-                        <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 rounded-full">
-                          🟢 {data.chainName || 'Ethereum'}
+        {/* Loading */}
+        {loading && (
+          <div className="flex justify-center py-12">
+            <div className="flex items-center gap-4 bg-white dark:bg-gray-800 rounded-2xl px-8 py-6 shadow-lg border border-gray-200 dark:border-gray-700">
+              <Loader2 className="w-6 h-6 animate-spin text-blue-600 dark:text-blue-400" />
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">Loading wallet data</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Fetching balances and transactions...</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Error */}
+        {error && !loading && (
+          <div className="flex justify-center py-4">
+            <div className="flex items-start gap-3 max-w-2xl w-full bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-2xl p-4">
+              <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-semibold text-red-800 dark:text-red-300">Unable to load wallet</p>
+                <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Dashboard */}
+        {data && !loading && (
+          <>
+            {/* Overview Header */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <BarChart3 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">WALLET OVERVIEW</h2>
+              </div>
+              {data.chainName && (
+                <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-sm font-medium">
+                  {data.chainName}
+                </span>
+              )}
+            </div>
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+                    <Wallet className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Wallet Address</span>
+                </div>
+                <p className="text-lg font-mono font-semibold text-gray-900 dark:text-white">
+                  {address.slice(0, 6)}...{address.slice(-4)}
+                </p>
+              </div>
+
+              <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
+                    <Activity className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Transactions</span>
+                </div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data.transactions?.length || 0}</p>
+              </div>
+
+              <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 bg-green-50 dark:bg-green-900/30 rounded-lg">
+                    <Coins className="w-5 h-5 text-green-600 dark:text-green-400" />
+                  </div>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Tokens</span>
+                </div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data.tokens?.length || 0}</p>
+              </div>
+
+              <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 bg-yellow-50 dark:bg-yellow-900/30 rounded-lg">
+                    <TrendingUp className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+                  </div>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Balance ({data.chainName || 'Ethereum'})</span>
+                </div>
+                <div className="flex items-end gap-2">
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {(data.balance || 0).toFixed(4)}
+                  </p>
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-0.5">
+                    {data.symbol || 'ETH'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 mt-1 text-sm text-green-600 dark:text-green-400">
+                  <TrendingUp className="w-3 h-3" />
+                  <span>+2.5%</span>
+                </div>
+              </div>
+            </div>
+
+            {/* ✅ Tabs - Enterprise Grade with Centered Layout */}
+            <div className="flex justify-center mb-8">
+              <div className="inline-flex flex-wrap justify-center gap-1 p-1.5 bg-gray-100 dark:bg-gray-800/50 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                {tabs.map((tab) => {
+                  const Icon = tab.icon;
+                  const isActive = activeTab === tab.id;
+                  const isNew = tab.id === 'defi' || tab.id === 'performance';
+                  
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`
+                        relative px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-300
+                        flex items-center gap-2 whitespace-nowrap
+                        ${isActive 
+                          ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-lg ring-2 ring-blue-500/20 dark:ring-blue-400/20 scale-105' 
+                          : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-gray-700/50'
+                        }
+                      `}
+                    >
+                      <Icon className={`w-4 h-4 ${isActive ? 'text-blue-600 dark:text-blue-400' : ''}`} />
+                      <span>{tab.label}</span>
+                      
+                      {tab.id === 'nfts' && hasNFTs && (
+                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse ring-2 ring-white dark:ring-gray-800" />
+                      )}
+                      
+                      {isNew && (
+                        <span className="text-[10px] font-bold bg-gradient-to-r from-blue-500 to-purple-500 text-white px-2 py-0.5 rounded-full ml-1">
+                          NEW
                         </span>
                       )}
-                    </div>
-                    <button
-                      onClick={() => setShowNFTs(!showNFTs)}
-                      className="text-sm text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 transition-colors"
-                    >
-                      {showNFTs ? 'Hide' : 'Show'} NFTs
                     </button>
-                  </div>
-
-                  {showNFTs && (
-                    <div className="space-y-4">
-                      <NFTStats address={address} chain={data?.chain || 'ethereum'} />
-                      <NFTGallery address={address} chain={data?.chain || 'ethereum'} />
-                    </div>
-                  )}
+                  );
+                })}
+                <div className="flex items-center px-3 py-1 text-xs text-gray-400 dark:text-gray-500 border-l border-gray-200 dark:border-gray-700">
+                  v2.0
                 </div>
+              </div>
+            </div>
 
-                {/* Lower Grid - Holdings and Transactions */}
-                <div className="cwt-lower-grid">
-                  <div className="cwt-holdings-card">
-                    <div className="cwt-holdings-header">
-                      <h3>Token Holdings</h3>
-                      <p>{data.tokens?.length || 0} Assets</p>
+            {/* Tab Content */}
+            <div className="space-y-6">
+              {/* Overview Tab */}
+              {activeTab === 'overview' && (
+                <>
+                  {/* Main Grid - Chart and Prices */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                          Portfolio Value
+                          <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
+                            (30 days)
+                          </span>
+                        </h3>
+                      </div>
+                      <div className="h-64">
+                        <PortfolioChart data={chartData} isLoading={loading} />
+                      </div>
                     </div>
-                    <TokenHoldings tokens={data.tokens || []} chain={data?.chain || 'ethereum'} />
+
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                        Live Prices
+                      </h3>
+                      <LivePrices chain={data?.chain || 'ethereum'} tokens={data?.tokens || []} />
+                    </div>
                   </div>
 
-                  <div className="cwt-transactions-card">
-                    <div className="cwt-transactions-header">
-                      <h3>Recent Transactions</h3>
-                      <p>{data.transactions?.length || 0} total</p>
+                  {/* NFT Gallery */}
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
+                          <Image className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                          NFT Gallery
+                        </h3>
+                        {hasNFTs && (
+                          <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 rounded-full">
+                            🟢 {data.chainName || 'Ethereum'}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => setShowNFTs(!showNFTs)}
+                        className="text-sm text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 transition-colors"
+                      >
+                        {showNFTs ? 'Hide' : 'Show'} NFTs
+                      </button>
                     </div>
-                    <RecentTransactions transactions={data.transactions || []} />
-                  </div>
-                </div>
 
-                {/* Asset Allocation */}
+                    {showNFTs && (
+                      <div className="space-y-4">
+                        <NFTStats address={address} chain={data?.chain || 'ethereum'} />
+                        <NFTGallery address={address} chain={data?.chain || 'ethereum'} />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Lower Grid - Holdings and Transactions */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                          Token Holdings
+                        </h3>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          {data.tokens?.length || 0} Assets
+                        </span>
+                      </div>
+                      <TokenHoldings tokens={data.tokens || []} chain={data?.chain || 'ethereum'} />
+                    </div>
+
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                          Recent Transactions
+                        </h3>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          {data.transactions?.length || 0} total
+                        </span>
+                      </div>
+                      <RecentTransactions transactions={data.transactions || []} />
+                    </div>
+                  </div>
+
+                  {/* Asset Allocation */}
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                      Asset Allocation
+                    </h3>
+                    <AssetAllocation allocation={allocation} isLoading={loading} />
+                  </div>
+                </>
+              )}
+
+              {/* Tokens Tab */}
+              {activeTab === 'tokens' && (
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                    Asset Allocation
+                    Token Holdings
                   </h3>
-                  <AssetAllocation allocation={allocation} isLoading={loading} />
+                  <TokenHoldings tokens={data.tokens || []} chain={data?.chain || 'ethereum'} />
                 </div>
-              </>
-            )}
+              )}
 
-            {/* Tokens Tab */}
-            {activeTab === 'tokens' && (
-              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                  Token Holdings
-                </h3>
-                <TokenHoldings tokens={data.tokens || []} chain={data?.chain || 'ethereum'} />
-              </div>
-            )}
-
-            {/* DeFi Tab */}
-            {activeTab === 'defi' && (
-              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                  DeFi Positions
-                </h3>
-                <DeFiPositions address={address} chain={data?.chain || 'ethereum'} />
-              </div>
-            )}
-
-            {/* NFTs Tab */}
-            {activeTab === 'nfts' && (
-              <div className="space-y-4">
+              {/* DeFi Tab */}
+              {activeTab === 'defi' && (
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-                  <NFTStats address={address} chain={data?.chain || 'ethereum'} />
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                    DeFi Positions
+                  </h3>
+                  <DeFiPositions address={address} chain={data?.chain || 'ethereum'} />
                 </div>
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 sm:p-6">
-                  <NFTGallery address={address} chain={data?.chain || 'ethereum'} />
+              )}
+
+              {/* NFTs Tab */}
+              {activeTab === 'nfts' && (
+                <div className="space-y-4">
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                    <NFTStats address={address} chain={data?.chain || 'ethereum'} />
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                    <NFTGallery address={address} chain={data?.chain || 'ethereum'} />
+                  </div>
+                </div>
+              )}
+
+              {/* History Tab */}
+              {activeTab === 'history' && (
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                    Portfolio History
+                  </h3>
+                  <PortfolioHistory address={address} chain={data?.chain || 'ethereum'} />
+                </div>
+              )}
+
+              {/* Performance Tab */}
+              {activeTab === 'performance' && (
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                    Performance & PnL
+                  </h3>
+                  <PerformanceMetrics address={address} chain={data?.chain || 'ethereum'} />
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Grid - Network Info */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8">
+              <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+                    <Activity className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Network</p>
+                    <p className="font-semibold text-gray-900 dark:text-white">{data.chainName || 'Ethereum'}</p>
+                  </div>
                 </div>
               </div>
-            )}
 
-            {/* History Tab */}
-            {activeTab === 'history' && (
-              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                  Portfolio History
-                </h3>
-                <PortfolioHistory address={address} chain={data?.chain || 'ethereum'} />
+              <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg">
+                    <Coins className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Assets</p>
+                    <p className="font-semibold text-gray-900 dark:text-white">{data.tokens?.length || 0}</p>
+                  </div>
+                </div>
               </div>
-            )}
 
-            {/* Performance Tab */}
-            {activeTab === 'performance' && (
-              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                  Performance & PnL
-                </h3>
-                <PerformanceMetrics address={address} chain={data?.chain || 'ethereum'} />
+              <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-rose-50 dark:bg-rose-900/30 rounded-lg">
+                    <ArrowUpRight className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Transactions</p>
+                    <p className="font-semibold text-gray-900 dark:text-white">{data.transactions?.length || 0}</p>
+                  </div>
+                </div>
               </div>
-            )}
-          </div>
-
-          {/* Bottom Grid */}
-          <div className="cwt-bottom-grid">
-            <div className="cwt-bottom-card">
-              <div className="cwt-bottom-icon">
-                <Activity className="w-full h-full" />
-              </div>
-              <div className="cwt-bottom-label">Network</div>
-              <div className="cwt-bottom-value">{data.chainName || 'Ethereum'}</div>
             </div>
-
-            <div className="cwt-bottom-card">
-              <div className="cwt-bottom-icon">
-                <Coins className="w-full h-full" />
-              </div>
-              <div className="cwt-bottom-label">Assets</div>
-              <div className="cwt-bottom-value">{data.tokens?.length || 0}</div>
-            </div>
-
-            <div className="cwt-bottom-card">
-              <div className="cwt-bottom-icon">
-                <ArrowUpRight className="w-full h-full" />
-              </div>
-              <div className="cwt-bottom-label">Transactions</div>
-              <div className="cwt-bottom-value">{data.transactions?.length || 0}</div>
-            </div>
-          </div>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
