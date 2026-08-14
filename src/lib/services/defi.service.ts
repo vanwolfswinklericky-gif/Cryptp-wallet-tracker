@@ -1,4 +1,4 @@
-// lib/services/defi.service.ts
+// src/lib/services/defi.service.ts
 import { cache } from '@/lib/cache';
 import { PriceService } from './price.service';
 
@@ -41,8 +41,13 @@ export class DeFiService {
     chain: string,
     protocol?: string
   ): Promise<DeFiPosition[]> {
-    // This would integrate with DeFi protocols
-    // For now, return sample data
+    const cacheKey = `defi:positions:${address}:${chain}:${protocol || 'all'}`;
+    const cached = cache.get<DeFiPosition[]>(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
     const positions: DeFiPosition[] = [
       {
         protocol: 'Aave',
@@ -72,19 +77,20 @@ export class DeFiService {
       },
     ];
 
-    // Filter by protocol if specified
     const filtered = protocol
       ? positions.filter(p => p.protocol.toLowerCase() === protocol.toLowerCase())
       : positions;
 
-    // Update prices
     const symbols = filtered.map(p => p.asset);
     const prices = await this.priceService.getPrices(symbols);
     
-    return filtered.map(p => ({
+    const result = filtered.map(p => ({
       ...p,
       value: p.amount * (prices[p.asset] || 1),
     }));
+
+    cache.set(cacheKey, result, 300);
+    return result;
   }
 
   calculatePositionSummary(positions: DeFiPosition[]): DeFiSummary {

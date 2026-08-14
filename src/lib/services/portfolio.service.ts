@@ -1,5 +1,5 @@
-// lib/services/portfolio.service.ts
-import { cache, getWalletCacheKey } from '@/lib/cache';
+// src/lib/services/portfolio.service.ts
+import { cache } from '@/lib/cache';
 import { WalletService } from './wallet.service';
 import { PriceService } from './price.service';
 
@@ -8,14 +8,6 @@ export interface PortfolioHistoryPoint {
   value: number;
   change: number;
   changePercentage: number;
-}
-
-export interface PortfolioHistory {
-  points: PortfolioHistoryPoint[];
-  startValue: number;
-  endValue: number;
-  totalChange: number;
-  totalChangePercentage: number;
 }
 
 export class PortfolioService {
@@ -45,16 +37,14 @@ export class PortfolioService {
       return cached;
     }
 
-    // Get wallet data with transactions
     const walletData = await this.walletService.getWalletData(
       address,
       chain,
-      true, // include transactions
-      true, // include tokens
-      false // exclude NFTs for performance
+      true,
+      true,
+      false
     );
 
-    // Build transaction-based history
     const history = this.buildHistoryFromTransactions(
       walletData.transactions,
       walletData.balance,
@@ -63,9 +53,7 @@ export class PortfolioService {
       interval
     );
 
-    // Cache for 5 minutes
     cache.set(cacheKey, history, 300);
-
     return history;
   }
 
@@ -81,7 +69,6 @@ export class PortfolioService {
       false
     );
 
-    // Calculate token values
     let tokenValue = 0;
     if (walletData.tokens.length > 0) {
       const symbols = walletData.tokens.map(t => t.tokenSymbol);
@@ -108,7 +95,6 @@ export class PortfolioService {
     const now = Date.now();
     const intervalMs = this.getIntervalMs(interval);
 
-    // Group transactions by interval
     const groupedTransactions = this.groupTransactionsByInterval(
       transactions,
       days,
@@ -117,21 +103,18 @@ export class PortfolioService {
 
     let runningBalance = currentBalance;
 
-    // Build points from most recent to oldest
     for (let i = days; i >= 0; i--) {
       const date = new Date(now - i * intervalMs);
       const dateKey = date.toISOString().split('T')[0];
       
-      // Get transactions for this interval
       const intervalTxs = groupedTransactions[dateKey] || [];
       
-      // Calculate balance at this point
       let intervalChange = 0;
       intervalTxs.forEach(tx => {
         const value = parseFloat(tx.value) / 1e18;
         const isIncoming = tx.to?.toLowerCase() === tx.from?.toLowerCase() 
           ? false 
-          : tx.to?.toLowerCase() === '0x...'; // Simplified
+          : tx.to?.toLowerCase() === '0x...';
         intervalChange += isIncoming ? value : -value;
       });
 
@@ -145,7 +128,6 @@ export class PortfolioService {
       });
     }
 
-    // Calculate changes
     for (let i = 1; i < points.length; i++) {
       const prev = points[i - 1];
       const curr = points[i];

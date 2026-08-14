@@ -1,6 +1,6 @@
-// lib/services/transaction.service.ts
+// src/lib/services/transaction.service.ts
 import { cache, getTransactionCacheKey } from '@/lib/cache';
-import { getTransactions, getTokenTransfers } from '@/lib/etherscan';
+import { getTransactions } from '@/lib/etherscan';
 
 export interface TransactionFilters {
   limit: number;
@@ -52,7 +52,6 @@ export class TransactionService {
       return cached;
     }
 
-    // Fetch transactions
     const response = await getTransactions(
       address,
       Math.floor(filters.offset / filters.limit) + 1,
@@ -62,7 +61,6 @@ export class TransactionService {
 
     let transactions = response.status === '1' ? response.result : [];
     
-    // Apply type filter
     if (filters.type && filters.type !== 'all') {
       transactions = transactions.filter((tx: any) => {
         const isIncoming = tx.to?.toLowerCase() === address.toLowerCase();

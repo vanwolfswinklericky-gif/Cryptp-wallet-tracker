@@ -1,4 +1,4 @@
-// lib/services/token.service.ts
+// src/lib/services/token.service.ts
 import { cache, getTokenCacheKey } from '@/lib/cache';
 import { getTokenBalances } from '@/lib/etherscan';
 import { PriceService } from './price.service';
@@ -40,7 +40,6 @@ export class TokenService {
       return cached;
     }
 
-    // Fetch token balances
     const response = await getTokenBalances(address, chain as any);
     const tokens = response.status === '1' ? response.result : [];
 
@@ -48,11 +47,9 @@ export class TokenService {
       return [];
     }
 
-    // Get prices for all tokens
     const symbols = tokens.map((t: any) => t.tokenSymbol);
     const prices = await this.priceService.getPrices(symbols);
 
-    // Build token info
     const tokenInfo: TokenInfo[] = tokens.map((token: any) => {
       const balance = parseFloat(token.balance);
       const decimals = parseInt(token.tokenDecimal) || 18;
@@ -72,7 +69,6 @@ export class TokenService {
       };
     });
 
-    // Filter out tokens with zero balance and sort by value
     const filtered = tokenInfo
       .filter(t => t.balanceFormatted > 0)
       .sort((a, b) => b.value - a.value);

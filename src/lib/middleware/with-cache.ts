@@ -1,4 +1,3 @@
-// lib/middleware/with-cache.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { cache } from '@/lib/cache';
 
@@ -16,7 +15,6 @@ export async function withCache(
   const cacheKey = options.key || url.pathname + url.search;
   const ttl = options.ttl || 60;
 
-  // Check cache
   const cached = cache.get<string>(cacheKey);
   if (cached) {
     const response = NextResponse.json(JSON.parse(cached), {
@@ -29,10 +27,8 @@ export async function withCache(
     return response;
   }
 
-  // Execute handler
   const response = await handler();
   
-  // Cache response if successful
   if (response.status === 200) {
     const data = await response.clone().json();
     cache.set(cacheKey, JSON.stringify(data), ttl);

@@ -1,4 +1,4 @@
-// lib/services/chain.service.ts
+// src/lib/services/chain.service.ts
 import { cache } from '@/lib/cache';
 
 export interface ChainActivity {
@@ -39,8 +39,6 @@ export class ChainService {
       return cached;
     }
 
-    // This would fetch actual chain data
-    // For now, return sample data
     const activity: ChainActivity = {
       chain,
       symbol: 'ETH',

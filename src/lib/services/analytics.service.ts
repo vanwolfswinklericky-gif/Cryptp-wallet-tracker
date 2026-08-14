@@ -1,4 +1,4 @@
-// lib/services/analytics.service.ts
+// src/lib/services/analytics.service.ts
 import { cache } from '@/lib/cache';
 import { PortfolioService } from './portfolio.service';
 import { PriceService } from './price.service';
@@ -57,13 +57,11 @@ export class AnalyticsService {
     const currentValue = history[history.length - 1]?.value || 0;
     const startValue = history[0]?.value || 0;
 
-    // Calculate changes
     const dayChange = this.calculateChange(history, 1);
     const weekChange = this.calculateChange(history, 7);
     const monthChange = this.calculateChange(history, 30);
     const yearChange = this.calculateChange(history, 365);
 
-    // Find best and worst days
     let bestDay = history[0];
     let worstDay = history[0];
     let totalChange = 0;
@@ -86,10 +84,7 @@ export class AnalyticsService {
       ? totalChange / changes.length 
       : 0;
 
-    // Calculate volatility (standard deviation)
     const volatility = this.calculateVolatility(changes);
-
-    // Calculate Sharpe ratio (assuming risk-free rate of 2%)
     const riskFreeRate = 0.02;
     const sharpeRatio = volatility > 0
       ? ((currentValue - startValue) / startValue - riskFreeRate) / volatility

@@ -1,4 +1,4 @@
-// components/dashboard/PortfolioHistory.tsx
+// src/components/dashboard/PortfolioHistory.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -22,7 +22,6 @@ export default function PortfolioHistory({ address, chain = 'ethereum' }: Props)
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState<'7d' | '30d' | '90d' | '1y'>('30d');
-  const [performance, setPerformance] = useState<any>(null);
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -32,15 +31,15 @@ export default function PortfolioHistory({ address, chain = 'ethereum' }: Props)
       setError(null);
 
       try {
+        const days = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : 365;
         const response = await fetch(
-          `/api/v1/portfolio/history?address=${address}&chain=${chain}&days=${period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : 365}`
+          `/api/v1/portfolio/history?address=${address}&chain=${chain}&days=${days}`
         );
 
         if (!response.ok) throw new Error('Failed to fetch history');
 
         const data = await response.json();
-        setHistory(data.data.history || []);
-        setPerformance(data.data.currentValue);
+        setHistory(data.data?.history || []);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
@@ -87,17 +86,11 @@ export default function PortfolioHistory({ address, chain = 'ethereum' }: Props)
 
   return (
     <div className="space-y-4">
-      {/* Period selector */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
             Portfolio Value
           </span>
-          {performance && (
-            <span className="text-sm text-gray-500 dark:text-gray-400">
-              ${performance.toFixed(2)}
-            </span>
-          )}
         </div>
         <div className="flex gap-1">
           {(['7d', '30d', '90d', '1y'] as const).map((p) => (
@@ -116,12 +109,10 @@ export default function PortfolioHistory({ address, chain = 'ethereum' }: Props)
         </div>
       </div>
 
-      {/* Chart */}
       <div className="h-64">
         <PortfolioChart data={chartData} isLoading={false} />
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-4 gap-4">
         <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
           <p className="text-xs text-gray-500 dark:text-gray-400">Start Value</p>

@@ -1,4 +1,3 @@
-// lib/validators.ts
 export interface WalletRequestParams {
   address: string;
   chain?: string;
@@ -28,13 +27,8 @@ export function validateWalletAddress(address: string): { valid: boolean; error?
 
   const cleanAddress = address.trim();
   
-  // Check if it's a valid Ethereum address
   const isEthereum = /^0x[a-fA-F0-9]{40}$/i.test(cleanAddress);
-  
-  // Check if it's a valid Solana address
   const isSolana = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(cleanAddress);
-  
-  // Check if it's a valid Bitcoin address
   const isBitcoin = /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(cleanAddress) || 
                     /^bc1[a-zA-Z0-9]{39,59}$/.test(cleanAddress);
 

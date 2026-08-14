@@ -1,4 +1,3 @@
-// lib/middleware/with-rate-limit.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { RateLimiter } from '@/lib/rate-limiter';
 
@@ -34,7 +33,6 @@ export function withRateLimit(
     }
 
     return handler().then((response) => {
-      // Add rate limit headers to response
       Object.entries(headers).forEach(([key, value]) => {
         response.headers.set(key, value);
       });
