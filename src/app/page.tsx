@@ -15,7 +15,6 @@ import {
   Image,
   Layers,
   Clock,
-  PieChart,
   Gauge,
 } from 'lucide-react';
 
@@ -298,7 +297,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* ✅ Enhanced Tabs with all features */}
+          {/* ✅ Tabs - All 6 tabs including DeFi and Performance */}
           <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 max-w-3xl mx-auto mt-8 mb-6 overflow-x-auto">
             {(['overview', 'tokens', 'defi', 'nfts', 'history', 'performance'] as const).map((tab) => {
               const icons = {
@@ -315,7 +314,7 @@ export default function Home() {
                 defi: 'DeFi',
                 nfts: 'NFTs',
                 history: 'History',
-                performance: 'Performance',
+                performance: 'PnL',
               };
               return (
                 <button
@@ -332,14 +331,9 @@ export default function Home() {
                   {tab === 'nfts' && hasNFTs && (
                     <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                   )}
-                  {tab === 'defi' && (
-                    <span className="text-[8px] bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 rounded-full">
-                      NEW
-                    </span>
-                  )}
-                  {tab === 'performance' && (
+                  {(tab === 'defi' || tab === 'performance') && (
                     <span className="text-[8px] bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded-full">
-                      PnL
+                      NEW
                     </span>
                   )}
                 </button>
