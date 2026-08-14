@@ -1,8 +1,7 @@
-// app/page.tsx - Complete fixed version
-
+// app/page.tsx
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Activity,
   AlertCircle,
@@ -36,6 +35,7 @@ import PerformanceMetrics from '@/components/dashboard/PerformanceMetrics';
 
 export default function Home() {
   console.log('🚀 Crypto Wallet Tracker v2.0 - 6 Tabs Loaded');
+  console.log('📍 Page component mounted');
 
   const [address, setAddress] = useState('');
   const [data, setData] = useState<any>(null);
@@ -46,6 +46,41 @@ export default function Home() {
   const [showNFTs, setShowNFTs] = useState(true);
   const [hasNFTs, setHasNFTs] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'tokens' | 'defi' | 'nfts' | 'history' | 'performance'>('overview');
+  
+  // Debug refs
+  const tabsContainerRef = useRef<HTMLDivElement>(null);
+  const [debugInfo, setDebugInfo] = useState<any>({});
+
+  // Debug function to log tab info
+  const logTabInfo = useCallback(() => {
+    console.log('🔍 === TAB DEBUG INFO ===');
+    console.log('Active tab:', activeTab);
+    console.log('All tabs:', ['overview', 'tokens', 'defi', 'nfts', 'history', 'performance']);
+    console.log('Has NFTs:', hasNFTs);
+    console.log('Data loaded:', !!data);
+    
+    // Check DOM
+    if (typeof document !== 'undefined') {
+      const tabButtons = document.querySelectorAll('[data-tab-button]');
+      console.log('Tab buttons in DOM:', tabButtons.length);
+      tabButtons.forEach((btn, i) => {
+        console.log(`  Tab ${i + 1}:`, btn.getAttribute('data-tab-id'), btn.textContent);
+      });
+    }
+    
+    // Check container width
+    if (tabsContainerRef.current) {
+      const rect = tabsContainerRef.current.getBoundingClientRect();
+      console.log('Tabs container width:', rect.width);
+      console.log('Tabs container scroll width:', tabsContainerRef.current.scrollWidth);
+      console.log('Is overflow?', tabsContainerRef.current.scrollWidth > rect.width);
+    }
+  }, [activeTab, hasNFTs, data]);
+
+  // Log on mount and when dependencies change
+  useEffect(() => {
+    logTabInfo();
+  }, [logTabInfo]);
 
   // Build chart data from transactions
   const buildChartData = useCallback((transactions: any[], walletAddress: string, currentBalance: number) => {
@@ -127,16 +162,19 @@ export default function Home() {
   }, []);
 
   const handleAddressSubmit = async (addr: string, chain: string) => {
+    console.log('📍 handleAddressSubmit called with:', { addr, chain });
     setLoading(true);
     setError(null);
     setData(null);
 
     try {
+      console.log('📡 Fetching wallet data...');
       const response = await fetch(
         `/api/wallet/${addr}?includeTxs=true&chain=${chain}`
       );
 
       const result = await response.json();
+      console.log('📡 API Response status:', response.status);
 
       if (!response.ok) {
         throw new Error(result.error || 'Failed to fetch wallet data');
@@ -159,13 +197,18 @@ export default function Home() {
       
       // ✅ Check if wallet has NFTs
       try {
+        console.log('🖼️ Checking for NFTs...');
         const nftCheck = await fetch(`/api/nft/has?address=${addr}&chain=${chain}`);
         const nftData = await nftCheck.json();
+        console.log('🖼️ NFT check result:', nftData);
         setHasNFTs(nftData.hasNFTs || false);
       } catch (nftError) {
         console.log('NFT check failed:', nftError);
         setHasNFTs(false);
       }
+      
+      console.log('✅ Wallet data loaded successfully');
+      logTabInfo();
       
     } catch (err) {
       console.error('❌ Error fetching wallet data:', err);
@@ -177,15 +220,20 @@ export default function Home() {
     }
   };
 
-  // Tab configuration with all 6 tabs
-  const tabConfig = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'tokens', label: 'Tokens' },
-    { id: 'defi', label: 'DeFi', isNew: true },
-    { id: 'nfts', label: 'NFTs' },
-    { id: 'history', label: 'History' },
-    { id: 'performance', label: 'PnL', isNew: true },
-  ] as const;
+  // All 6 tabs defined
+  const allTabs = ['overview', 'tokens', 'defi', 'nfts', 'history', 'performance'] as const;
+  const tabLabels = {
+    overview: 'Overview',
+    tokens: 'Tokens',
+    defi: 'DeFi',
+    nfts: 'NFTs',
+    history: 'History',
+    performance: 'PnL',
+  };
+
+  // Log tab count on render
+  console.log('🎨 Rendering tabs. Total tabs:', allTabs.length);
+  console.log('📋 Tab labels:', Object.values(tabLabels));
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
@@ -343,61 +391,187 @@ export default function Home() {
               </div>
             </div>
 
-            {/* ⭐⭐⭐ ENTERPRISE TABS - PRODUCTION GRADE SOLUTION ⭐⭐⭐ */}
-            <div className="mb-8">
-              {/* Remove any max-width constraints - use full width */}
-              <div className="w-full bg-gray-100 dark:bg-gray-800/50 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-1">
-                {/* Use flex with justify-center and allow wrapping only on very small screens */}
-                <div className="flex flex-wrap items-center justify-center gap-0.5 sm:gap-1 w-full">
-                  {tabConfig.map((tab) => {
-                    const isActive = activeTab === tab.id;
-                    const isNew = tab.isNew || false;
-                    
+            {/* 🔍🔍🔍 DEBUG SECTION - Let's find the issue 🔍🔍🔍 */}
+            <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/20 rounded-2xl border-2 border-red-400 dark:border-red-700">
+              <h3 className="font-bold text-red-700 dark:text-red-300 mb-3 flex items-center gap-2">
+                <span className="text-xl">🔍</span> 
+                TABS DEBUG INFORMATION
+                <span className="text-xs font-normal text-red-500 dark:text-red-400 ml-2">
+                  (Check console for more details)
+                </span>
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Left column - Tab count */}
+                <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Total Tabs Defined:</p>
+                  <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{allTabs.length}</p>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {allTabs.map((tab) => (
+                      <span key={tab} className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-xs">
+                        {tabLabels[tab]}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Right column - Active tab */}
+                <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Active Tab:</p>
+                  <p className="text-2xl font-bold text-green-600 dark:text-green-400">{activeTab}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Label: {tabLabels[activeTab as keyof typeof tabLabels]}
+                  </p>
+                </div>
+              </div>
+
+              {/* Render all tabs as plain text to verify they exist */}
+              <div className="mt-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-red-200 dark:border-red-800">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">⬇️ All tabs rendered as simple text (should show 6):</p>
+                <div className="flex gap-2 flex-wrap">
+                  {allTabs.map((tab) => {
+                    const isActive = activeTab === tab;
+                    return (
+                      <span 
+                        key={tab} 
+                        className={`px-3 py-1 rounded text-sm font-medium ${
+                          isActive 
+                            ? 'bg-blue-500 text-white' 
+                            : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                        }`}
+                      >
+                        {tabLabels[tab]} {isActive && '👈'}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Check for hidden tabs with inline styles - NO CSS constraints */}
+              <div className="mt-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-red-200 dark:border-red-800">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">⬇️ Tabs with INLINE STYLES (bypasses all CSS):</p>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {allTabs.map((tab) => {
+                    const isActive = activeTab === tab;
                     return (
                       <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`
-                          relative flex-1 min-w-[50px] sm:min-w-[70px] md:min-w-[80px] 
-                          py-1.5 sm:py-2 px-1 sm:px-2 md:px-3 
-                          rounded-lg sm:rounded-xl 
-                          text-[10px] sm:text-xs md:text-sm 
-                          font-medium transition-all duration-300
-                          text-center whitespace-nowrap
-                          ${isActive 
-                            ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-lg ring-2 ring-blue-500/20 dark:ring-blue-400/20 scale-[1.02]' 
-                            : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-gray-700/50'
-                          }
-                        `}
+                        key={tab}
+                        onClick={() => setActiveTab(tab)}
+                        style={{
+                          padding: '6px 12px',
+                          background: isActive ? '#3b82f6' : '#e5e7eb',
+                          color: isActive ? 'white' : '#374151',
+                          borderRadius: '6px',
+                          border: 'none',
+                          fontSize: '14px',
+                          fontWeight: isActive ? '600' : '400',
+                          cursor: 'pointer',
+                          display: 'inline-block',
+                          visibility: 'visible',
+                          opacity: 1,
+                          position: 'relative',
+                          zIndex: 999,
+                        }}
                       >
-                        <span className="relative inline-flex items-center gap-0.5 sm:gap-1">
-                          {tab.label}
-                          
-                          {tab.id === 'nfts' && hasNFTs && (
-                            <span className="absolute -top-0.5 -right-1.5 sm:-top-1 sm:-right-2 w-1.5 h-1.5 sm:w-2 sm:h-2 bg-green-500 rounded-full animate-pulse ring-2 ring-white dark:ring-gray-800" />
-                          )}
-                          
-                          {isNew && (
-                            <span className="text-[6px] sm:text-[8px] md:text-[9px] font-bold bg-gradient-to-r from-blue-500 to-purple-500 text-white px-1 sm:px-1.5 py-0.5 rounded-full ml-0.5 sm:ml-1">
-                              NEW
-                            </span>
-                          )}
-                        </span>
+                        {tabLabels[tab]}
                       </button>
                     );
                   })}
-                  {/* Version badge - integrated into tabs bar */}
-                  <div className="flex items-center px-1.5 sm:px-2 py-1 text-[8px] sm:text-[10px] text-gray-400 dark:text-gray-500 border-l border-gray-200 dark:border-gray-700">
-                    v2.0
-                  </div>
+                </div>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+                  ✅ These buttons use inline styles - they should ALWAYS be visible regardless of CSS
+                </p>
+              </div>
+
+              {/* Container width debug */}
+              <div className="mt-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-red-200 dark:border-red-800">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">📐 Container Info:</p>
+                <div ref={tabsContainerRef} className="w-full h-4 bg-gray-200 dark:bg-gray-700 rounded overflow-hidden">
+                  <div className="h-full bg-blue-500" style={{ width: '100%' }}></div>
+                </div>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                  Container width: 100% (check console for exact measurements)
+                </p>
+              </div>
+
+              <div className="mt-3 text-xs text-red-600 dark:text-red-400">
+                💡 If you see all 6 tabs above but not in the main menu, the issue is CSS-related.
+                <br />
+                💡 If you DON'T see all 6 tabs above, the issue is in the React rendering logic.
+                <br />
+                💡 Check the browser console (F12) for detailed logs.
+              </div>
+            </div>
+
+            {/* ✅ TABS - With visible scrollbar to debug */}
+            <div className="mb-8">
+              <div 
+                ref={tabsContainerRef}
+                className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 max-w-3xl mx-auto overflow-x-auto [&::-webkit-scrollbar]:h-3 [&::-webkit-scrollbar-thumb]:bg-blue-400 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-gray-200 dark:[&::-webkit-scrollbar-track]:bg-gray-700"
+              >
+                {allTabs.map((tab) => {
+                  const isActive = activeTab === tab;
+                  const isNew = tab === 'defi' || tab === 'performance';
+                  
+                  console.log(`🔘 Rendering tab: ${tabLabels[tab]}, active: ${isActive}`);
+                  
+                  return (
+                    <button
+                      key={tab}
+                      data-tab-button="true"
+                      data-tab-id={tab}
+                      onClick={() => {
+                        console.log(`🖱️ Clicked tab: ${tabLabels[tab]}`);
+                        setActiveTab(tab);
+                      }}
+                      className={`
+                        flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
+                        ${isActive 
+                          ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-md' 
+                          : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-gray-700/50'
+                        }
+                      `}
+                    >
+                      <span className="flex items-center gap-1">
+                        {tabLabels[tab]}
+                        {isNew && (
+                          <span className="text-[8px] font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded-full">
+                            NEW
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  );
+                })}
+                <div className="flex-shrink-0 flex items-center px-2 text-xs text-gray-400 dark:text-gray-500 border-l border-gray-200 dark:border-gray-700">
+                  v2.0
                 </div>
               </div>
               
-              {/* Subtle indicator showing all tabs are available */}
-              <div className="flex justify-center mt-1.5">
-                <span className="text-[8px] sm:text-[10px] text-gray-400 dark:text-gray-500 opacity-60">
-                  Overview • Tokens • DeFi • NFTs • History • PnL
-                </span>
+              {/* Show all tab names below */}
+              <div className="flex justify-center mt-2 gap-2 text-xs text-gray-400 dark:text-gray-500">
+                {allTabs.map((tab) => (
+                  <span key={tab} className="px-1">
+                    {tabLabels[tab]}
+                  </span>
+                ))}
+              </div>
+              
+              <div className="flex justify-center mt-1">
+                <button
+                  onClick={() => {
+                    console.log('🔄 Manual tab check triggered');
+                    logTabInfo();
+                    if (tabsContainerRef.current) {
+                      console.log('📐 Container scroll width:', tabsContainerRef.current.scrollWidth);
+                      console.log('📐 Container client width:', tabsContainerRef.current.clientWidth);
+                      console.log('📐 Difference:', tabsContainerRef.current.scrollWidth - tabsContainerRef.current.clientWidth);
+                    }
+                  }}
+                  className="text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                >
+                  🔍 Check Tabs
+                </button>
               </div>
             </div>
 
