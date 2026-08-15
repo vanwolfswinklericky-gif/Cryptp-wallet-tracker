@@ -5,7 +5,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model Wallet {
@@ -19,6 +18,7 @@ model Wallet {
   isScam      Boolean  @default(false)
   metadata    Json     @default("{}")
   
+  // ✅ Add this relation to match WalletMetric
   metrics     WalletMetric[]
   transactions WalletTransaction[]
   scans       ScannedWallet[]
@@ -27,7 +27,7 @@ model Wallet {
 model WalletMetric {
   id          String   @id @default(cuid())
   walletId    String
-  wallet      Wallet   @relation(fields: [walletId], references: [id])
+  wallet      Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
   chain       String
   timestamp   DateTime @default(now())
   
@@ -79,7 +79,7 @@ model WalletMetric {
 model WalletTransaction {
   id          String   @id @default(cuid())
   walletId    String
-  wallet      Wallet   @relation(fields: [walletId], references: [id])
+  wallet      Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
   chain       String
   hash        String   @unique
   fromAddress String?
@@ -114,7 +114,7 @@ model ScannerFilter {
 model ScannedWallet {
   id          String   @id @default(cuid())
   walletId    String
-  wallet      Wallet   @relation(fields: [walletId], references: [id])
+  wallet      Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
   scanId      String?
   score       Int      @default(0)
   rank        Int      @default(0)
