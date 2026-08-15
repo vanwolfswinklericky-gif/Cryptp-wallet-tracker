@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Prisma generated client
+node_modules/.prisma/
+node_modules/@prisma/
+
+# Prisma compiled files
+*.wasm
+*.wasm-base64.js
