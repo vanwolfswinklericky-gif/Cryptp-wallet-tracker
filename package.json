@@ -2,13 +2,20 @@
   "name": "crypto-wallet-tracker",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:db": "node --loader ts-node/esm test-db.ts",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.9.1",
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-tabs": "^1.1.21",
     "@tanstack/react-query": "^5.101.4",
@@ -21,12 +28,14 @@
     "chart.js": "^4.5.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
+    "dotenv": "^17.4.2",
     "echarts": "^6.1.0",
     "echarts-for-react": "^3.0.6",
     "ethers": "^6.17.0",
     "framer-motion": "^13.0.0",
     "lucide-react": "^1.30.0",
     "next": "16.3.0",
+    "pg": "^8.23.0",
     "postcss": "^8.5.26",
     "react": "19.2.8",
     "react-chartjs-2": "^5.3.1",
@@ -36,10 +45,13 @@
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@types/pg": "^8.21.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
-    "typescript": "^5"
+    "ts-node": "^10.9.2",
+    "typescript": "^5",
+    "webpack": "^5.109.2"
   }
 }
