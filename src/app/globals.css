@@ -4,52 +4,51 @@
 
 @layer base {
   :root {
-    --background: #ffffff;
-    --foreground: #111111;
-    --card: #ffffff;
-    --card-foreground: #111111;
-    --popover: #ffffff;
-    --popover-foreground: #111111;
-    --primary: #1600b5;
-    --primary-foreground: #ffffff;
-    --secondary: #f0f0f0;
-    --secondary-foreground: #111111;
-    --muted: #f5f5f5;
-    --muted-foreground: #555555;
-    --accent: #f0f0f0;
-    --accent-foreground: #111111;
-    --destructive: #ef4444;
-    --destructive-foreground: #ffffff;
-    --border: #858585;
-    --input: #858585;
-    --ring: #1600b5;
-    --radius: 0.625rem;
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
   }
 
   .dark {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --card: #1a1a2e;
-    --card-foreground: #eeeeff;
-    --popover: #1a1a2e;
-    --popover-foreground: #eeeeff;
-    --primary: #1600b5;
-    --primary-foreground: #ffffff;
-    --secondary: #222244;
-    --secondary-foreground: #eeeeff;
-    --muted: #222244;
-    --muted-foreground: #9999bb;
-    --accent: #222244;
-    --accent-foreground: #eeeeff;
-    --destructive: #ef4444;
-    --destructive-foreground: #ffffff;
-    --border: #444466;
-    --input: #444466;
-    --ring: #1600b5;
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
   }
 }
 
-/* Your custom CWT styles */
 .cwt-page {
   width: min(100%, 1214px);
   margin: 0 auto;
@@ -657,11 +656,13 @@
     grid-template-columns: repeat(2, 1fr);
     gap: 16px;
   }
+
   .cwt-main-grid,
   .cwt-lower-grid {
     grid-template-columns: 1fr;
     gap: 24px;
   }
+
   .cwt-bottom-grid {
     grid-template-columns: repeat(2, 256px);
     gap: 16px;
@@ -674,28 +675,35 @@
     align-items: center;
     text-align: center;
   }
+
   .cwt-header-title {
     font-size: 20px;
   }
+
   .cwt-header-subtitle {
     font-size: 12px;
   }
+
   .cwt-wallet-row {
     flex-direction: column;
     gap: 8px;
   }
+
   .cwt-wallet-select {
     width: 100%;
   }
+
   .cwt-stats-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
   }
+
   .cwt-main-grid,
   .cwt-lower-grid {
     grid-template-columns: 1fr;
     gap: 20px;
   }
+
   .cwt-bottom-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
@@ -706,21 +714,25 @@
   .cwt-page {
     padding: 0 16px 30px;
   }
+
   .cwt-stats-grid,
   .cwt-main-grid,
   .cwt-lower-grid {
     grid-template-columns: 1fr;
     gap: 16px;
   }
+
   .cwt-bottom-grid {
     grid-template-columns: 1fr;
     gap: 12px;
     max-width: 280px;
     margin: 0 auto;
   }
+
   .cwt-header-title {
     font-size: 18px;
   }
+
   .cwt-wallet-card {
     max-width: 100%;
     padding: 14px;
