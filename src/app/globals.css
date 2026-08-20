@@ -49,6 +49,25 @@
   }
 }
 
+/* ✅ Fixed: No @apply here */
+* {
+  border-color: hsl(var(--border));
+  outline-color: hsl(var(--ring) / 0.5);
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+html {
+  font-family: var(--font-sans);
+}
+
+/* ============================================
+   CWT CUSTOM STYLES - All your existing styles
+   ============================================ */
+
 .cwt-page {
   width: min(100%, 1214px);
   margin: 0 auto;
@@ -656,13 +675,11 @@
     grid-template-columns: repeat(2, 1fr);
     gap: 16px;
   }
-
   .cwt-main-grid,
   .cwt-lower-grid {
     grid-template-columns: 1fr;
     gap: 24px;
   }
-
   .cwt-bottom-grid {
     grid-template-columns: repeat(2, 256px);
     gap: 16px;
@@ -675,35 +692,28 @@
     align-items: center;
     text-align: center;
   }
-
   .cwt-header-title {
     font-size: 20px;
   }
-
   .cwt-header-subtitle {
     font-size: 12px;
   }
-
   .cwt-wallet-row {
     flex-direction: column;
     gap: 8px;
   }
-
   .cwt-wallet-select {
     width: 100%;
   }
-
   .cwt-stats-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
   }
-
   .cwt-main-grid,
   .cwt-lower-grid {
     grid-template-columns: 1fr;
     gap: 20px;
   }
-
   .cwt-bottom-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
@@ -714,25 +724,21 @@
   .cwt-page {
     padding: 0 16px 30px;
   }
-
   .cwt-stats-grid,
   .cwt-main-grid,
   .cwt-lower-grid {
     grid-template-columns: 1fr;
     gap: 16px;
   }
-
   .cwt-bottom-grid {
     grid-template-columns: 1fr;
     gap: 12px;
     max-width: 280px;
     margin: 0 auto;
   }
-
   .cwt-header-title {
     font-size: 18px;
   }
-
   .cwt-wallet-card {
     max-width: 100%;
     padding: 14px;
