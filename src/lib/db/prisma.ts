@@ -1,31 +1,36 @@
-\// src/lib/db/prisma.ts
-import { PrismaClient } from '@prisma/client';
+// src/lib/db/prisma.ts
+import { PrismaClient } from '@prisma/client'
 
+// Global declaration for Prisma Client
 declare global {
-  var prisma: PrismaClient | undefined;
+  // eslint-disable-next-line no-var
+  var prisma: PrismaClient | undefined
 }
 
-// During build time, we don't need a real database connection
-// This allows the build to complete without DATABASE_URL
-const isBuildTime = process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL;
+// Check if we're in a build environment without a database
+const isBuildTime = process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL
 
-function createPrismaClient() {
-  // During build, create a minimal client
+// Create Prisma Client function
+function createPrismaClient(): PrismaClient {
+  // During build time, create a minimal client
   if (isBuildTime) {
     return new PrismaClient({
       log: ['error'],
-    });
+    })
   }
 
+  // Normal client for development/production
   return new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-  });
+  })
 }
 
-export const prisma = global.prisma || createPrismaClient();
+// Export singleton instance
+export const prisma = global.prisma || createPrismaClient()
 
+// Save to global in development
 if (process.env.NODE_ENV !== 'production') {
-  global.prisma = prisma;
+  global.prisma = prisma
 }
 
-export default prisma;
+export default prisma
