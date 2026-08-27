@@ -25,19 +25,6 @@ enum Chain {
   SOLANA
 }
 
-enum AuditAction {
-  CREATE
-  UPDATE
-  DELETE
-  EXPORT
-  LOGIN
-  LOGOUT
-  SCAN
-  FAVORITE
-  ARCHIVE
-  RESTORE
-}
-
 // ✅ USER MODEL - Enterprise-grade user management
 model User {
   id            String          @id @default(cuid())
@@ -65,7 +52,7 @@ model User {
   @@index([role])
 }
 
-// ✅ WALLET MODEL - Updated with enterprise features
+// ✅ WALLET MODEL - Complete with all fields
 model Wallet {
   id          String   @id @default(cuid())
   address     String   @unique
@@ -77,7 +64,7 @@ model Wallet {
   isScam      Boolean  @default(false)
   metadata    Json     @default("{}")
   
-  // ✅ NEW: Enterprise wallet management fields
+  // Enterprise wallet management fields
   userId      String?
   user        User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
   notes       String?         @db.Text
@@ -102,7 +89,7 @@ model Wallet {
   @@index([lastScannedAt])
 }
 
-// ✅ WALLET METRIC - Enhanced with more metrics
+// ✅ WALLET METRIC - Enhanced metrics
 model WalletMetric {
   id          String   @id @default(cuid())
   walletId    String
@@ -156,7 +143,7 @@ model WalletMetric {
   performance30d Float @default(0)
   performance90d Float @default(0)
   
-  // ✅ NEW: Additional metrics
+  // Additional metrics
   totalGasUsed Float   @default(0)
   averageGasPrice Float @default(0)
   uniqueInteractions Int @default(0)
@@ -192,7 +179,7 @@ model WalletTransaction {
   gasUsed     Float?
   gasPrice    Float?
   
-  // ✅ NEW: Enhanced transaction fields
+  // Enhanced transaction fields
   isInternal  Boolean  @default(false)
   isError     Boolean  @default(false)
   confirmedAt DateTime?
@@ -321,7 +308,7 @@ model ScannedWallet {
   timestamp   DateTime @default(now())
   matchedFilters Json   @default("{}")
   
-  // ✅ NEW: Enhanced scan data
+  // Enhanced scan data
   scanDuration Int?     // in milliseconds
   resultHash   String?
   isProcessed  Boolean  @default(false)
