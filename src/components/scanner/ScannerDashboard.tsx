@@ -20,6 +20,7 @@ import {
   Smartphone,
   Eye,
   Target,
+  AlertCircle,
 } from 'lucide-react';
 
 interface WalletMetrics {
@@ -157,7 +158,7 @@ export default function ScannerDashboard() {
     return 'text-gray-500 dark:text-gray-400';
   };
 
-  const viewOptions: { value: ScannerView; label: string; icon: React.ReactNode }[] = [
+  const viewOptions: { value: ScannerView; label: string; icon: ReactNode }[] = [
     { value: 'wallets', label: 'All Wallets', icon: <Wallet className="w-4 h-4" /> },
     { value: 'trending', label: 'Trending', icon: <TrendingUp className="w-4 h-4" /> },
     { value: 'top-performers', label: 'Top Performers', icon: <Crown className="w-4 h-4" /> },
