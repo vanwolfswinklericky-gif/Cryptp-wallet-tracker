@@ -4,12 +4,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { 
   Plus, Star, Edit, Trash2, ExternalLink, 
-  Search, Filter, Loader2, ChevronDown,
-  MoreVertical, Copy, Check, Archive,
-  X, Save, AlertTriangle
+  Search, Loader2, Copy, Check, X,
+  AlertTriangle, AlertCircle, Wallet as WalletIcon
 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { useDebounce } from '@/hooks/use-debounce';
 
 interface Wallet {
   id: string;
@@ -19,7 +16,7 @@ interface Wallet {
   notes: string | null;
   isFavorite: boolean;
   isArchived: boolean;
-  metrics?: any;
+  metrics?: any[];
 }
 
 interface Pagination {
@@ -30,66 +27,101 @@ interface Pagination {
 }
 
 export function WalletManagement() {
+  // ✅ State with proper defaults
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     limit: 10,
     total: 0,
     totalPages: 0,
   });
-  const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
   const [newWallet, setNewWallet] = useState({
     address: '',
     chain: 'ETHEREUM',
     label: '',
     notes: '',
   });
-  const [submitting, setSubmitting] = useState(false);
-  const { toast } = useToast();
-  const debouncedSearch = useDebounce(search, 300);
 
-  // ✅ Fetch wallets with pagination and search
+  // ✅ Fetch wallets with proper error handling
   const fetchWallets = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams({
         page: pagination.page.toString(),
         limit: pagination.limit.toString(),
       });
-      if (debouncedSearch) {
-        params.append('search', debouncedSearch);
+      if (search) {
+        params.append('search', search);
       }
 
       const response = await fetch(`/api/wallets?${params}`);
-      const result = await response.json();
-
-      if (result.success) {
-        setWallets(result.data);
-        setPagination(result.metadata);
+      
+      // ✅ Handle non-200 responses
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
       }
-    } catch (error) {
-      console.error('Failed to fetch wallets:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load wallets',
-        variant: 'destructive',
+
+      const result = await response.json();
+      
+      // ✅ Validate response structure
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch wallets');
+      }
+
+      // ✅ Safely set data with fallbacks
+      setWallets(Array.isArray(result.data) ? result.data : []);
+      setPagination({
+        page: result.metadata?.page || 1,
+        limit: result.metadata?.limit || 10,
+        total: result.metadata?.total || 0,
+        totalPages: result.metadata?.totalPages || 0,
       });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load wallets';
+      setError(errorMessage);
+      console.error('Fetch wallets error:', err);
+      // ✅ Set empty state on error
+      setWallets([]);
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.limit, debouncedSearch, toast]);
+  }, [pagination.page, pagination.limit, search]);
 
+  // ✅ Initial load with error boundary
   useEffect(() => {
-    fetchWallets();
+    let isMounted = true;
+    
+    const loadWallets = async () => {
+      if (!isMounted) return;
+      await fetchWallets();
+    };
+    
+    loadWallets();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [fetchWallets]);
 
-  // ✅ Create wallet
+  // ✅ Create wallet with validation
   const handleCreateWallet = async () => {
+    if (!newWallet.address) {
+      setError('Wallet address is required');
+      return;
+    }
+
     setSubmitting(true);
+    setError(null);
     try {
       const response = await fetch('/api/wallets', {
         method: 'POST',
@@ -99,23 +131,15 @@ export function WalletManagement() {
 
       const result = await response.json();
 
-      if (result.success) {
-        toast({
-          title: 'Success',
-          description: 'Wallet added successfully',
-        });
-        setShowAddModal(false);
-        setNewWallet({ address: '', chain: 'ETHEREUM', label: '', notes: '' });
-        fetchWallets();
-      } else {
-        throw new Error(result.error);
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to create wallet');
       }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to add wallet',
-        variant: 'destructive',
-      });
+
+      setShowAddModal(false);
+      setNewWallet({ address: '', chain: 'ETHEREUM', label: '', notes: '' });
+      await fetchWallets();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create wallet');
     } finally {
       setSubmitting(false);
     }
@@ -126,6 +150,7 @@ export function WalletManagement() {
     if (!editingWallet) return;
     
     setSubmitting(true);
+    setError(null);
     try {
       const response = await fetch(`/api/wallets/${editingWallet.id}`, {
         method: 'PUT',
@@ -139,22 +164,14 @@ export function WalletManagement() {
 
       const result = await response.json();
 
-      if (result.success) {
-        toast({
-          title: 'Success',
-          description: 'Wallet updated successfully',
-        });
-        setEditingWallet(null);
-        fetchWallets();
-      } else {
-        throw new Error(result.error);
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to update wallet');
       }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to update wallet',
-        variant: 'destructive',
-      });
+
+      setEditingWallet(null);
+      await fetchWallets();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update wallet');
     } finally {
       setSubmitting(false);
     }
@@ -162,6 +179,7 @@ export function WalletManagement() {
 
   // ✅ Toggle favorite
   const handleToggleFavorite = async (walletId: string) => {
+    setError(null);
     try {
       const response = await fetch(`/api/wallets/${walletId}/favorite`, {
         method: 'POST',
@@ -169,25 +187,20 @@ export function WalletManagement() {
 
       const result = await response.json();
 
-      if (result.success) {
-        toast({
-          title: 'Success',
-          description: result.data.isFavorite ? 'Added to favorites' : 'Removed from favorites',
-        });
-        fetchWallets();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to toggle favorite');
       }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to update favorite status',
-        variant: 'destructive',
-      });
+
+      await fetchWallets();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to toggle favorite');
     }
   };
 
   // ✅ Delete wallet
   const handleDeleteWallet = async (walletId: string) => {
     setSubmitting(true);
+    setError(null);
     try {
       const response = await fetch(`/api/wallets/${walletId}`, {
         method: 'DELETE',
@@ -195,22 +208,14 @@ export function WalletManagement() {
 
       const result = await response.json();
 
-      if (result.success) {
-        toast({
-          title: 'Success',
-          description: 'Wallet deleted successfully',
-        });
-        setShowDeleteConfirm(null);
-        fetchWallets();
-      } else {
-        throw new Error(result.error);
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to delete wallet');
       }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to delete wallet',
-        variant: 'destructive',
-      });
+
+      setShowDeleteConfirm(null);
+      await fetchWallets();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete wallet');
     } finally {
       setSubmitting(false);
     }
@@ -218,22 +223,52 @@ export function WalletManagement() {
 
   const copyAddress = (address: string) => {
     navigator.clipboard.writeText(address);
-    toast({
-      title: 'Copied!',
-      description: 'Address copied to clipboard',
-    });
+    setCopiedAddress(address);
+    setTimeout(() => setCopiedAddress(null), 2000);
   };
 
+  const filteredWallets = wallets.filter(w => {
+    if (!search) return true;
+    const searchLower = search.toLowerCase();
+    return (
+      w.address.toLowerCase().includes(searchLower) ||
+      (w.label && w.label.toLowerCase().includes(searchLower))
+    );
+  });
+
+  // ✅ Loading State
+  if (loading && wallets.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">Loading wallets...</p>
+      </div>
+    );
+  }
+
+  // ✅ Error State with retry
+  if (error && wallets.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+        <p className="text-red-600 dark:text-red-400">{error}</p>
+        <button
+          onClick={fetchWallets}
+          className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Wallet Management
-          </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Manage your tracked wallets
+            {wallets.length} wallets tracked
           </p>
         </div>
         <button
@@ -250,44 +285,54 @@ export function WalletManagement() {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
           type="text"
-          placeholder="Search wallets by address or label..."
+          placeholder="Search wallets..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
       </div>
 
-      {/* Wallets List */}
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      {/* Error Toast */}
+      {error && (
+        <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center justify-between">
+          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">
+            <X className="w-4 h-4" />
+          </button>
         </div>
-      ) : wallets.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="p-4 bg-gray-100 dark:bg-gray-800 rounded-full w-fit mx-auto mb-4">
-            <Wallet className="w-8 h-8 text-gray-400" />
-          </div>
+      )}
+
+      {/* Wallets List */}
+      {filteredWallets.length === 0 ? (
+        <div className="text-center py-8">
+          <WalletIcon className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
           <p className="text-gray-500 dark:text-gray-400">
             {search ? 'No wallets match your search' : 'No wallets tracked yet'}
           </p>
-          <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-            {search ? 'Try adjusting your search terms' : 'Click "Add Wallet" to start tracking'}
-          </p>
+          {!search && (
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="mt-2 text-blue-600 hover:text-blue-700 dark:text-blue-400 text-sm"
+            >
+              Add your first wallet
+            </button>
+          )}
         </div>
       ) : (
-        <div className="space-y-3">
-          {wallets.map((wallet) => (
+        <div className="space-y-2">
+          {filteredWallets.map((wallet) => (
             <div
               key={wallet.id}
-              className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700/30 transition-colors"
+              className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700/30 transition-colors"
             >
               {/* Wallet Info */}
               <div className="flex items-center gap-3 min-w-0 flex-1">
                 <button
                   onClick={() => handleToggleFavorite(wallet.id)}
                   className="flex-shrink-0"
+                  disabled={submitting}
                 >
-                  <Star className={`w-5 h-5 transition-colors ${
+                  <Star className={`w-4 h-4 transition-colors ${
                     wallet.isFavorite 
                       ? 'fill-yellow-400 text-yellow-400' 
                       : 'text-gray-400 hover:text-yellow-400'
@@ -299,11 +344,6 @@ export function WalletManagement() {
                     <p className="font-medium text-gray-900 dark:text-white truncate">
                       {wallet.label || wallet.address.slice(0, 6) + '...' + wallet.address.slice(-4)}
                     </p>
-                    {wallet.isArchived && (
-                      <span className="text-xs px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full">
-                        Archived
-                      </span>
-                    )}
                   </div>
                   <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                     <span>{wallet.chain}</span>
@@ -313,16 +353,12 @@ export function WalletManagement() {
                       onClick={() => copyAddress(wallet.address)}
                       className="p-0.5 hover:text-gray-700 dark:hover:text-gray-300"
                     >
-                      <Copy className="w-3 h-3" />
+                      {copiedAddress === wallet.address ? (
+                        <Check className="w-3 h-3 text-green-500" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
                     </button>
-                    <a
-                      href={`https://etherscan.io/address/${wallet.address}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-0.5 hover:text-blue-600 dark:hover:text-blue-400"
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
                   </div>
                   {wallet.notes && (
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-1">
@@ -354,35 +390,10 @@ export function WalletManagement() {
         </div>
       )}
 
-      {/* Pagination */}
-      {pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Showing {(pagination.page - 1) * pagination.limit + 1} - {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}
-          </p>
-          <div className="flex gap-1">
-            <button
-              onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
-              disabled={pagination.page === 1}
-              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg disabled:opacity-50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
-              disabled={pagination.page === pagination.totalPages}
-              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg disabled:opacity-50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Add Wallet Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 shadow-xl">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowAddModal(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">Add Wallet</h3>
               <button
@@ -467,111 +478,6 @@ export function WalletManagement() {
                 className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
               >
                 {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add Wallet'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Modal */}
-      {editingWallet && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 shadow-xl">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Edit Wallet</h3>
-              <button
-                onClick={() => setEditingWallet(null)}
-                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Label
-                </label>
-                <input
-                  type="text"
-                  value={editingWallet.label || ''}
-                  onChange={(e) => setEditingWallet(prev => ({ ...prev!, label: e.target.value || '' }))}
-                  placeholder="My Main Wallet"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Notes
-                </label>
-                <textarea
-                  value={editingWallet.notes || ''}
-                  onChange={(e) => setEditingWallet(prev => ({ ...prev!, notes: e.target.value || '' }))}
-                  placeholder="Additional notes..."
-                  rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={editingWallet.isFavorite}
-                  onChange={(e) => setEditingWallet(prev => ({ ...prev!, isFavorite: e.target.checked }))}
-                  className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                />
-                <label className="text-sm text-gray-700 dark:text-gray-300">
-                  Favorite
-                </label>
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setEditingWallet(null)}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleUpdateWallet}
-                disabled={submitting}
-                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
-              >
-                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Changes'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-sm w-full p-6 shadow-xl">
-            <div className="flex items-center gap-3 mb-4">
-              <AlertTriangle className="w-6 h-6 text-red-500" />
-              <h3 className="text-lg font-semibold">Delete Wallet</h3>
-            </div>
-
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Are you sure you want to delete this wallet? This action cannot be undone.
-            </p>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setShowDeleteConfirm(null)}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDeleteWallet(showDeleteConfirm)}
-                disabled={submitting}
-                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
-              >
-                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Delete'}
               </button>
             </div>
           </div>
