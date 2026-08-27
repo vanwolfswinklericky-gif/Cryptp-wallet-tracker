@@ -19,8 +19,19 @@ import {
   Zap,
   Search,
   TrendingUp as TrendingUpIcon,
+  Plus,
+  Download,
+  Settings,
+  Users,
 } from 'lucide-react';
 
+// Shadcn/ui imports
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+
+// Component imports
 import DashboardLayout from '@/components/DashboardLayout';
 import WalletInput from '@/components/WalletInput';
 import WalletOverview from '@/components/WalletOverview';
@@ -35,7 +46,26 @@ import NFTStats from '@/components/nft/NFTStats';
 import PortfolioHistory from '@/components/dashboard/PortfolioHistory';
 import ScannerDashboard from '@/components/scanner/ScannerDashboard';
 
+// ✅ NEW IMPORTS
+import { WalletManagement } from '@/components/wallets/WalletManagement';
+import { ExportButton } from '@/components/export/ExportButton';
+import { useToast } from '@/hooks/use-toast';
+
+// Tab configuration
+const TAB_CONFIG = [
+  { id: 'overview', label: 'Overview', icon: BarChart3 },
+  { id: 'tokens', label: 'Tokens', icon: Coins },
+  { id: 'nfts', label: 'NFTs', icon: Image },
+  { id: 'history', label: 'History', icon: Clock },
+  { id: 'scanner', label: 'Scanner', icon: Target, badge: true, badgeColor: 'bg-green-500' },
+  { id: 'wallets', label: 'Wallets', icon: Wallet, badge: false },
+  { id: 'pnl', label: 'PnL', icon: TrendingUpIcon },
+] as const;
+
+type TabId = typeof TAB_CONFIG[number]['id'];
+
 export default function Home() {
+  // ... ALL YOUR EXISTING STATE
   const [address, setAddress] = useState('');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -44,98 +74,26 @@ export default function Home() {
   const [allocation, setAllocation] = useState<{ name: string; value: number; color: string }[]>([]);
   const [showNFTs, setShowNFTs] = useState(true);
   const [hasNFTs, setHasNFTs] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'tokens' | 'nfts' | 'history' | 'scanner' | 'pnl'>('overview');
+  const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const { toast } = useToast();
 
-  // Tab configuration
-  const tabs = [
-    { id: 'overview', label: 'Overview', icon: BarChart3 },
-    { id: 'tokens', label: 'Tokens', icon: Coins },
-    { id: 'nfts', label: 'NFTs', icon: Image },
-    { id: 'history', label: 'History', icon: Clock },
-    { id: 'scanner', label: 'Scanner', icon: Target },
-    { id: 'pnl', label: 'PnL', icon: TrendingUpIcon },
-  ] as const;
+  // ... ALL YOUR EXISTING FUNCTIONS (buildChartData, buildAllocation, handleAddressSubmit)
 
   // Build chart data from transactions
   const buildChartData = useCallback((transactions: any[], walletAddress: string, currentBalance: number) => {
-    console.log('📊 Building chart data...');
-    console.log('💰 Current balance:', currentBalance);
-    
-    if (currentBalance > 0) {
-      const data = [];
-      for (let i = 29; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        data.push({
-          date: date.toISOString().split('T')[0],
-          value: currentBalance
-        });
-      }
-      console.log('✅ Chart data built (balance-based):', data.length, 'points');
-      return data;
-    }
-
-    if (!transactions || transactions.length === 0) {
-      console.log('⚠️ No data available');
-      return [{ date: new Date().toISOString().split('T')[0], value: 0 }];
-    }
-
-    const sorted = [...transactions].sort((a, b) => 
-      parseInt(a.timeStamp) - parseInt(b.timeStamp)
-    );
-
-    const dailyBalances: { [key: string]: number } = {};
-    let runningBalance = 0;
-
-    sorted.forEach(tx => {
-      const date = new Date(parseInt(tx.timeStamp) * 1000).toISOString().split('T')[0];
-      const value = parseFloat(tx.value) / 1e18;
-      const isIncoming = tx.to?.toLowerCase() === walletAddress?.toLowerCase();
-      const amount = isIncoming ? value : -value;
-      runningBalance += amount;
-      dailyBalances[date] = Math.max(0, runningBalance);
-    });
-
-    const result = Object.entries(dailyBalances).map(([date, value]) => ({
-      date,
-      value
-    }));
-    
-    console.log('✅ Chart data built (transaction-based):', result.length, 'points');
-    return result;
+    // ... your existing function
   }, []);
 
   // Build asset allocation from tokens
   const buildAllocation = useCallback((tokens: any[]) => {
-    if (!tokens || tokens.length === 0) {
-      return [
-        { name: 'ETH', value: 100, color: '#627EEA' }
-      ];
-    }
-
-    const colors = ['#627EEA', '#2775CA', '#F5AC37', '#FF6B6B', '#6C5CE7', '#00B894', '#FD79A8', '#00CEC9'];
-    
-    const totalValue = tokens.reduce((sum, token) => {
-      const balance = parseFloat(token.balance) / Math.pow(10, token.decimals);
-      return sum + balance;
-    }, 0);
-
-    if (totalValue === 0) {
-      return [{ name: 'ETH', value: 100, color: '#627EEA' }];
-    }
-
-    return tokens.slice(0, 6).map((token, index) => {
-      const balance = parseFloat(token.balance) / Math.pow(10, token.decimals);
-      const value = (balance / totalValue) * 100;
-      return {
-        name: token.tokenSymbol || 'Unknown',
-        value: Math.max(0, value),
-        color: colors[index % colors.length]
-      };
-    });
+    // ... your existing function
   }, []);
 
-  // Calculate PnL metrics
+  const handleAddressSubmit = async (addr: string, chain: string) => {
+    // ... your existing function
+  };
+
+  // ✅ NEW: Calculate PnL
   const pnlData = useMemo(() => {
     if (!data || !address) return null;
     
@@ -172,392 +130,475 @@ export default function Home() {
     };
   }, [data, address]);
 
-  const handleAddressSubmit = async (addr: string, chain: string) => {
-    setLoading(true);
-    setError(null);
-    setData(null);
+  // ✅ NEW: Memoized tabs with badges
+  const tabsWithBadges = useMemo(() => {
+    return TAB_CONFIG.map(tab => ({
+      ...tab,
+      showBadge: tab.id === 'nfts' ? hasNFTs : tab.badge,
+    }));
+  }, [hasNFTs]);
 
-    try {
-      const response = await fetch(
-        `/api/wallet/${addr}?includeTxs=true&chain=${chain}`
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to fetch wallet data');
-      }
-
-      console.log('✅ API Response received');
-      console.log('📊 Balance:', result.balance);
-      console.log('📝 Transactions:', result.transactions?.length || 0);
-      console.log('🪙 Tokens:', result.tokens?.length || 0);
-      console.log('🔗 Chain:', result.chainName);
-
-      setData(result);
-      setAddress(addr);
-      
-      const chartDataFromTxs = buildChartData(result.transactions, addr, result.balance);
-      setChartData(chartDataFromTxs);
-      
-      const allocationData = buildAllocation(result.tokens);
-      setAllocation(allocationData);
-      
-      // ✅ Check if wallet has NFTs
-      try {
-        const nftCheck = await fetch(`/api/nft/has?address=${addr}&chain=${chain}`);
-        const nftData = await nftCheck.json();
-        setHasNFTs(nftData.hasNFTs || false);
-      } catch (nftError) {
-        console.log('NFT check failed:', nftError);
-        setHasNFTs(false);
-      }
-      
-    } catch (err) {
-      console.error('❌ Error fetching wallet data:', err);
-      setError(
-        err instanceof Error ? err.message : 'An unexpected error occurred'
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+  // ✅ NEW: Stats config
+  const statsConfig = useMemo(() => [
+    { 
+      id: 'address',
+      label: 'Wallet Address',
+      value: address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'N/A',
+      icon: Wallet,
+    },
+    {
+      id: 'transactions',
+      label: 'Transactions',
+      value: data?.transactions?.length || 0,
+      icon: Activity,
+    },
+    {
+      id: 'tokens',
+      label: 'Tokens',
+      value: data?.tokens?.length || 0,
+      icon: Coins,
+    },
+    {
+      id: 'balance',
+      label: `Balance (${data?.chainName || 'Ethereum'})`,
+      value: `${(data?.balance || 0).toFixed(4)} ${data?.symbol || 'ETH'}`,
+      icon: TrendingUp,
+      change: '+2.5%',
+    },
+  ], [address, data]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
       <header className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="cwt-page">
-          <div className="cwt-header">
-            <div className="cwt-header-left">
-              <h1 className="cwt-header-title">CRYPTO WALLET TRACKER</h1>
-              <p className="cwt-header-subtitle">
-                Track balances, tokens, transactions, and portfolio activities.
-              </p>
-            </div>
-            <div className="cwt-header-right">
-              <div className="cwt-live-badge">Live</div>
-              <ThemeToggle />
-            </div>
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex flex-col">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              CRYPTO WALLET TRACKER
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Track balances, tokens, transactions, and portfolio activities.
+            </p>
+          </div>
+          <div className="flex items-center gap-4">
+            <Badge variant="default" className="bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse mr-1.5" />
+              Live
+            </Badge>
+            {/* ✅ ADD EXPORT BUTTON TO HEADER */}
+            {data && <ExportButton type="holdings" label="Export CSV" variant="outline" />}
+            <ThemeToggle />
           </div>
         </div>
       </header>
 
-      <main className="cwt-page">
-        {/* Wallet Input */}
-        <section className="cwt-wallet-section">
-          <div className="cwt-wallet-card">
-            <div className="cwt-wallet-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4">
-                <path d="M4 7h15a2 2 0 0 1 2 2v10H4a2 2 0 0 1-2-2V7Z" />
-                <path d="M4 7V5a2 2 0 0 1 2-2h13v4" />
-                <path d="M16 13h5" />
-              </svg>
-            </div>
-            <h2 className="cwt-wallet-title">Track a wallet</h2>
-            <p className="cwt-wallet-desc">
-              Enter a wallet address to view its portfolio and activity.
-            </p>
-            <WalletInput onAddressSubmit={handleAddressSubmit} isLoading={loading} />
-            <p className="cwt-wallet-supported">
-              Supports: Ethereum, Polygon, BSC, Arbitrum, Optimism, Avalanche, Base
-            </p>
-          </div>
+      <main className="container mx-auto px-4 py-6 space-y-6">
+        {/* Wallet Input Section */}
+        <section className="max-w-2xl mx-auto">
+          <Card>
+            <CardHeader className="text-center">
+              <div className="mx-auto p-3 bg-primary/10 rounded-full w-fit mb-4">
+                <Wallet className="w-8 h-8 text-primary" />
+              </div>
+              <CardTitle className="text-2xl">Track a wallet</CardTitle>
+              <CardDescription>
+                Enter a wallet address to view its portfolio and activity.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <WalletInput onAddressSubmit={handleAddressSubmit} isLoading={loading} />
+              <p className="text-xs text-center text-muted-foreground">
+                Supports: Ethereum, Polygon, BSC, Arbitrum, Optimism, Avalanche, Base
+              </p>
+            </CardContent>
+          </Card>
         </section>
 
-        {/* Loading */}
+        {/* Loading State */}
         {loading && (
           <div className="flex justify-center py-8">
-            <div className="flex items-center gap-3 rounded-2xl border border-gray-300 bg-white px-6 py-4 shadow-sm dark:border-gray-600 dark:bg-gray-800">
-              <Loader2 className="h-5 w-5 animate-spin text-blue-600 dark:text-blue-400" />
-              <div>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                  Loading wallet data
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Fetching balances and transactions...
-                </p>
-              </div>
-            </div>
+            <Card className="w-full max-w-md">
+              <CardContent className="flex items-center gap-4 py-6">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <div>
+                  <p className="font-semibold">Loading wallet data</p>
+                  <p className="text-sm text-muted-foreground">
+                    Fetching balances and transactions...
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
 
-        {/* Error */}
+        {/* Error State */}
         {error && !loading && (
           <div className="flex justify-center py-4">
-            <div className="flex w-full max-w-2xl items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950/20">
-              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />
-              <div>
-                <p className="text-sm font-semibold text-red-800 dark:text-red-300">
-                  Unable to load wallet
-                </p>
-                <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
-              </div>
-            </div>
+            <Card className="w-full max-w-2xl border-destructive/50 bg-destructive/10">
+              <CardContent className="flex items-start gap-3 py-6">
+                <AlertCircle className="h-5 w-5 shrink-0 text-destructive mt-0.5" />
+                <div>
+                  <p className="font-semibold text-destructive">Unable to load wallet</p>
+                  <p className="text-sm text-destructive/80">{error}</p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
 
-        {/* Dashboard */}
+        {/* Dashboard Content */}
         {data && !loading && (
           <>
-            {/* Overview */}
-            <div className="cwt-overview">
-              <div className="cwt-overview-heading">
-                <BarChart3 className="cwt-overview-icon" />
-                <h2>WALLET OVERVIEW</h2>
+            {/* Overview Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <BarChart3 className="h-6 w-6 text-primary" />
+                <h2 className="text-xl font-semibold">WALLET OVERVIEW</h2>
               </div>
               {data.chainName && (
-                <span className="cwt-overview-pill">{data.chainName}</span>
+                <Badge variant="secondary">{data.chainName}</Badge>
               )}
             </div>
 
             {/* Stats Grid */}
-            <div className="cwt-stats-grid">
-              <div className="cwt-stat-card">
-                <div className="cwt-stat-icon">
-                  <Wallet className="w-full h-full" />
-                </div>
-                <div className="cwt-stat-label">Wallet Address</div>
-                <div className="cwt-stat-value">
-                  {address.slice(0, 6)}...{address.slice(-4)}
-                </div>
-              </div>
-
-              <div className="cwt-stat-card">
-                <div className="cwt-stat-icon">
-                  <Activity className="w-full h-full" />
-                </div>
-                <div className="cwt-stat-label">Transactions</div>
-                <div className="cwt-stat-value">{data.transactions?.length || 0}</div>
-              </div>
-
-              <div className="cwt-stat-card">
-                <div className="cwt-stat-icon">
-                  <Coins className="w-full h-full" />
-                </div>
-                <div className="cwt-stat-label">Tokens</div>
-                <div className="cwt-stat-value">{data.tokens?.length || 0}</div>
-              </div>
-
-              <div className="cwt-stat-card">
-                <div className="cwt-stat-icon">
-                  <TrendingUp className="w-full h-full" />
-                </div>
-                <div className="cwt-stat-label">Balance ({data.chainName || 'Ethereum'})</div>
-                <div className="cwt-stat-value">
-                  {(data.balance || 0).toFixed(4)} {data.symbol || 'ETH'}
-                </div>
-                <div className="cwt-stat-change">+2.5%</div>
-              </div>
-            </div>
-
-            {/* ✅ 6 Tabs */}
-            <div className="flex flex-wrap gap-1 mb-6 p-1 bg-gray-100 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                const isActive = activeTab === tab.id;
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {statsConfig.map((stat) => {
+                const Icon = stat.icon;
                 return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`flex-1 min-w-[60px] flex items-center justify-center gap-2 px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all duration-200 ${
-                      isActive
-                        ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-md ring-1 ring-blue-500/20'
-                        : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-gray-700/50'
-                    }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    <span className="hidden sm:inline">{tab.label}</span>
-                    <span className="sm:hidden">{tab.label.charAt(0)}</span>
-                    {tab.id === 'scanner' && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                    )}
-                    {tab.id === 'nfts' && hasNFTs && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
-                    )}
-                  </button>
+                  <Card key={stat.id}>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Icon className="h-4 w-4" />
+                        <span className="text-sm">{stat.label}</span>
+                      </div>
+                      <p className="text-2xl font-bold mt-2">{stat.value}</p>
+                      {stat.change && (
+                        <Badge variant="default" className="mt-2 bg-green-500/10 text-green-600 dark:text-green-400">
+                          {stat.change}
+                        </Badge>
+                      )}
+                    </CardContent>
+                  </Card>
                 );
               })}
             </div>
 
-            {/* Tab Content */}
-            <div className="space-y-6">
+            {/* Enterprise Tabs */}
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabId)} className="space-y-6">
+              <TabsList className="flex flex-wrap gap-1 p-1 bg-muted/50 rounded-xl border border-border h-auto min-h-[48px]">
+                {tabsWithBadges.map((tab) => {
+                  const Icon = tab.icon;
+                  
+                  return (
+                    <TabsTrigger
+                      key={tab.id}
+                      value={tab.id}
+                      className={`
+                        flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200
+                        data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm
+                        data-[state=active]:ring-1 data-[state=active]:ring-primary/20
+                        hover:bg-muted/50
+                        flex-1 sm:flex-none min-w-[60px]
+                      `}
+                    >
+                      <Icon className="w-4 h-4 flex-shrink-0" />
+                      <span className="hidden sm:inline">{tab.label}</span>
+                      <span className="sm:hidden">{tab.label.charAt(0)}</span>
+                      
+                      {tab.showBadge && (
+                        <span className={cn(
+                          "w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0",
+                          tab.badgeColor || "bg-primary"
+                        )} />
+                      )}
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+
               {/* Overview Tab */}
-              {activeTab === 'overview' && (
-                <>
-                  {/* Main Grid - Chart and Prices */}
-                  <div className="cwt-main-grid">
-                    <div className="cwt-portfolio-card">
-                      <div className="cwt-portfolio-header">
-                        <h3>
-                          Portfolio Value
-                          <span> (30 days Value Performance)</span>
-                        </h3>
-                      </div>
-                      <div className="cwt-portfolio-chart">
-                        <PortfolioChart data={chartData} isLoading={loading} />
-                      </div>
-                    </div>
+              <TabsContent value="overview" className="space-y-6">
+                {/* ... YOUR EXISTING OVERVIEW CONTENT ... */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>
+                        Portfolio Value
+                        <span className="text-sm font-normal text-muted-foreground ml-2">
+                          (30 days Value Performance)
+                        </span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <PortfolioChart data={chartData} isLoading={loading} />
+                    </CardContent>
+                  </Card>
 
-                    <div className="cwt-price-card">
-                      <div className="cwt-price-header">
-                        <h3>Live Price</h3>
-                      </div>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Live Price</CardTitle>
+                    </CardHeader>
+                    <CardContent>
                       <LivePrices chain={data?.chain || 'ethereum'} tokens={data?.tokens || []} />
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
+                </div>
 
-                  {/* Lower Grid - Holdings and Transactions */}
-                  <div className="cwt-lower-grid">
-                    <div className="cwt-holdings-card">
-                      <div className="cwt-holdings-header">
-                        <h3>Token Holdings</h3>
-                        <p>{data.tokens?.length || 0} Assets</p>
+                {/* NFT Gallery */}
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
+                          <Image className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                        </div>
+                        <div>
+                          <CardTitle>NFT Gallery</CardTitle>
+                          {hasNFTs && (
+                            <CardDescription className="flex items-center gap-1">
+                              <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 rounded-full">
+                                🟢 {data.chainName || 'Ethereum'}
+                              </span>
+                            </CardDescription>
+                          )}
+                        </div>
                       </div>
+                      <button
+                        onClick={() => setShowNFTs(!showNFTs)}
+                        className="text-sm text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 transition-colors"
+                      >
+                        {showNFTs ? 'Hide' : 'Show'} NFTs
+                      </button>
+                    </div>
+                  </CardHeader>
+                  {showNFTs && (
+                    <CardContent className="space-y-4">
+                      <NFTStats address={address} chain={data?.chain || 'ethereum'} />
+                      <NFTGallery address={address} chain={data?.chain || 'ethereum'} />
+                    </CardContent>
+                  )}
+                </Card>
+
+                {/* Lower Grid - Holdings and Transactions */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Token Holdings</CardTitle>
+                      <CardDescription>{data.tokens?.length || 0} Assets</CardDescription>
+                    </CardHeader>
+                    <CardContent>
                       <TokenHoldings tokens={data.tokens || []} chain={data?.chain || 'ethereum'} />
-                    </div>
+                    </CardContent>
+                  </Card>
 
-                    <div className="cwt-transactions-card">
-                      <div className="cwt-transactions-header">
-                        <h3>Recent Transactions</h3>
-                        <p>{data.transactions?.length || 0} total</p>
-                      </div>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Recent Transactions</CardTitle>
+                      <CardDescription>{data.transactions?.length || 0} total</CardDescription>
+                    </CardHeader>
+                    <CardContent>
                       <RecentTransactions transactions={data.transactions || []} />
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
+                </div>
 
-                  {/* Asset Allocation */}
-                  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                      Asset Allocation
-                    </h3>
+                {/* Asset Allocation */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Asset Allocation</CardTitle>
+                  </CardHeader>
+                  <CardContent>
                     <AssetAllocation allocation={allocation} isLoading={loading} />
-                  </div>
-                </>
-              )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
               {/* Tokens Tab */}
-              {activeTab === 'tokens' && (
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                    Token Holdings
-                  </h3>
-                  <TokenHoldings tokens={data.tokens || []} chain={data?.chain || 'ethereum'} />
-                </div>
-              )}
+              <TabsContent value="tokens">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Token Holdings</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <TokenHoldings tokens={data.tokens || []} chain={data?.chain || 'ethereum'} />
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
               {/* NFTs Tab */}
-              {activeTab === 'nfts' && (
+              <TabsContent value="nfts">
                 <div className="space-y-4">
-                  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-                    <NFTStats address={address} chain={data?.chain || 'ethereum'} />
-                  </div>
-                  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 sm:p-6">
-                    <NFTGallery address={address} chain={data?.chain || 'ethereum'} />
-                  </div>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>NFT Statistics</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <NFTStats address={address} chain={data?.chain || 'ethereum'} />
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>NFT Gallery</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <NFTGallery address={address} chain={data?.chain || 'ethereum'} />
+                    </CardContent>
+                  </Card>
                 </div>
-              )}
+              </TabsContent>
 
               {/* History Tab */}
-              {activeTab === 'history' && (
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                    Portfolio History
-                  </h3>
-                  <PortfolioHistory address={address} chain={data?.chain || 'ethereum'} />
-                </div>
-              )}
+              <TabsContent value="history">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Portfolio History</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <PortfolioHistory address={address} chain={data?.chain || 'ethereum'} />
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
               {/* Scanner Tab */}
-              {activeTab === 'scanner' && (
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 sm:p-6">
-                  <ScannerDashboard />
-                </div>
-              )}
-
-              {/* ✅ PnL Tab */}
-              {activeTab === 'pnl' && (
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                    Profit & Loss Analysis
-                  </h3>
-                  {pnlData ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      <div className={`p-4 rounded-lg ${pnlData.isProfitable ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Total PnL</p>
-                        <p className={`text-2xl font-bold ${pnlData.isProfitable ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                          {pnlData.totalPnL > 0 ? '+' : ''}{pnlData.totalPnL.toFixed(4)} ETH
-                        </p>
-                      </div>
-                      <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                        <p className="text-sm text-gray-600 dark:text-gray-400">ROI</p>
-                        <p className={`text-2xl font-bold ${pnlData.totalRoi >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                          {pnlData.totalRoi > 0 ? '+' : ''}{pnlData.totalRoi.toFixed(2)}%
-                        </p>
-                      </div>
-                      <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Win Rate</p>
-                        <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                          {pnlData.winRate.toFixed(1)}%
-                        </p>
-                      </div>
-                      <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Wins</p>
-                        <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                          {pnlData.winCount}
-                        </p>
-                      </div>
-                      <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Losses</p>
-                        <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-                          {pnlData.lossCount}
-                        </p>
-                      </div>
-                      <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Total Transactions</p>
-                        <p className="text-2xl font-bold text-gray-700 dark:text-gray-300">
-                          {pnlData.totalTransactions}
-                        </p>
-                      </div>
+              <TabsContent value="scanner">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle>Wallet Scanner</CardTitle>
+                      <Badge variant="default" className="bg-green-500/10 text-green-600 dark:text-green-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse mr-1.5" />
+                        Live
+                      </Badge>
                     </div>
-                  ) : (
-                    <p className="text-center text-gray-500 dark:text-gray-400 py-8">
-                      No transaction data available for PnL calculation
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
+                    <CardDescription>
+                      Scan wallets for smart money, whale activity, and trading patterns
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ScannerDashboard />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* ✅ NEW: Wallets Management Tab */}
+              <TabsContent value="wallets">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>Wallet Management</CardTitle>
+                        <CardDescription>
+                          Manage and organize your tracked wallets
+                        </CardDescription>
+                      </div>
+                      <ExportButton type="holdings" label="Export All" variant="outline" />
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <WalletManagement />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* ✅ NEW: PnL Tab */}
+              <TabsContent value="pnl">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Profit & Loss Analysis</CardTitle>
+                    <CardDescription>
+                      Detailed performance metrics for your wallet
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {pnlData ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className={`p-4 rounded-lg ${pnlData.isProfitable ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Total PnL</p>
+                          <p className={`text-2xl font-bold ${pnlData.isProfitable ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                            {pnlData.totalPnL > 0 ? '+' : ''}{pnlData.totalPnL.toFixed(4)} ETH
+                          </p>
+                        </div>
+                        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                          <p className="text-sm text-gray-600 dark:text-gray-400">ROI</p>
+                          <p className={`text-2xl font-bold ${pnlData.totalRoi >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                            {pnlData.totalRoi > 0 ? '+' : ''}{pnlData.totalRoi.toFixed(2)}%
+                          </p>
+                        </div>
+                        <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Win Rate</p>
+                          <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                            {pnlData.winRate.toFixed(1)}%
+                          </p>
+                        </div>
+                        <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Wins</p>
+                          <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                            {pnlData.winCount}
+                          </p>
+                        </div>
+                        <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Losses</p>
+                          <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+                            {pnlData.lossCount}
+                          </p>
+                        </div>
+                        <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Total Transactions</p>
+                          <p className="text-2xl font-bold text-gray-700 dark:text-gray-300">
+                            {pnlData.totalTransactions}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                        No transaction data available for PnL calculation
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
 
             {/* Bottom Grid */}
-            <div className="cwt-bottom-grid">
-              <div className="cwt-bottom-card">
-                <div className="cwt-bottom-icon">
-                  <Activity className="w-full h-full" />
-                </div>
-                <div className="cwt-bottom-label">Network</div>
-                <div className="cwt-bottom-value">{data.chainName || 'Ethereum'}</div>
-              </div>
+            <div className="grid grid-cols-3 gap-4">
+              <Card>
+                <CardContent className="pt-6 text-center">
+                  <div className="mx-auto w-fit p-2 bg-muted rounded-lg mb-2">
+                    <Activity className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">Network</p>
+                  <p className="font-semibold">{data.chainName || 'Ethereum'}</p>
+                </CardContent>
+              </Card>
 
-              <div className="cwt-bottom-card">
-                <div className="cwt-bottom-icon">
-                  <Coins className="w-full h-full" />
-                </div>
-                <div className="cwt-bottom-label">Assets</div>
-                <div className="cwt-bottom-value">{data.tokens?.length || 0}</div>
-              </div>
+              <Card>
+                <CardContent className="pt-6 text-center">
+                  <div className="mx-auto w-fit p-2 bg-muted rounded-lg mb-2">
+                    <Coins className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">Assets</p>
+                  <p className="font-semibold">{data.tokens?.length || 0}</p>
+                </CardContent>
+              </Card>
 
-              <div className="cwt-bottom-card">
-                <div className="cwt-bottom-icon">
-                  <ArrowUpRight className="w-full h-full" />
-                </div>
-                <div className="cwt-bottom-label">Transactions</div>
-                <div className="cwt-bottom-value">{data.transactions?.length || 0}</div>
-              </div>
+              <Card>
+                <CardContent className="pt-6 text-center">
+                  <div className="mx-auto w-fit p-2 bg-muted rounded-lg mb-2">
+                    <ArrowUpRight className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">Transactions</p>
+                  <p className="font-semibold">{data.transactions?.length || 0}</p>
+                </CardContent>
+              </Card>
             </div>
           </>
         )}
       </main>
     </div>
   );
+}
+
+// ✅ Utility function
+function cn(...classes: (string | boolean | undefined | null)[]) {
+  return classes.filter(Boolean).join(' ');
 }
