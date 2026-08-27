@@ -49,6 +49,16 @@
   }
 }
 
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+}
+
 /* ✅ FIX: Dark mode for body and html */
 @layer base {
   * {
