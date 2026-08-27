@@ -59,21 +59,15 @@
   }
 }
 
-/* ✅ FIX: Dark mode for body and html */
-@layer base {
-  * {
-    border-color: hsl(var(--border));
-  }
-  body {
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
-  }
-}
-
 .cwt-page {
   width: min(100%, 1214px);
   margin: 0 auto;
   padding: 0 24px 40px;
+}
+
+/* ✅ ADD THIS - Dark mode background for the entire page */
+.dark .cwt-page {
+  background-color: hsl(var(--background));
 }
 
 .cwt-header {
@@ -622,7 +616,7 @@
   color: #111111;
 }
 
-/* ✅ DARK MODE OVERRIDES - Keep these */
+/* ✅ DARK MODE OVERRIDES */
 .dark .cwt-wallet-card,
 .dark .cwt-stat-card,
 .dark .cwt-portfolio-card,
