@@ -415,3 +415,6 @@ export class ScannerService {
     }));
   }
 }
+
+// ✅ ADD THIS AT THE BOTTOM - EXPORT THE SINGLETON INSTANCE
+export const scannerService = ScannerService.getInstance();
