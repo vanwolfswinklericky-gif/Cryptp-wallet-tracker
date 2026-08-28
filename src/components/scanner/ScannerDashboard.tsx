@@ -22,6 +22,7 @@ import {
   Save,
   Trash2,
   Plus,
+  X,
 } from 'lucide-react';
 
 interface ScannerResult {
@@ -54,6 +55,50 @@ interface ScannerFilters {
   preferredProtocols?: string[];
 }
 
+interface WalletAnalytics {
+  walletScore: number;
+  smartMoneyScore: number;
+  profitabilityScore: number;
+  pnl: {
+    total: number;
+    byChain: Record<string, number>;
+    byToken: Record<string, number>;
+  };
+  roi: {
+    total: number;
+    byChain: Record<string, number>;
+  };
+  drawdown: {
+    max: number;
+    average: number;
+  };
+  winRate: {
+    overall: number;
+    byChain: Record<string, number>;
+  };
+  tradingFrequency: {
+    average: number;
+    byDay: Record<string, number>;
+  };
+  consistency: {
+    streak: number;
+    activeDays: number;
+  };
+  earlyEntryBehavior: {
+    score: number;
+    earlyEntries: number;
+    averageAdvantage: number;
+  };
+  accumulationBehavior: {
+    score: number;
+    accumulationWallets: number;
+    averageHoldTime: number;
+  };
+  chainPreference: Record<string, number>;
+  tokenPreference: string[];
+  protocolPreference: string[];
+}
+
 const CHAIN_OPTIONS = ['ETHEREUM', 'POLYGON', 'BSC', 'ARBITRUM', 'OPTIMISM', 'AVALANCHE', 'BASE', 'SOLANA'];
 const TOKEN_OPTIONS = ['ETH', 'USDC', 'USDT', 'WBTC', 'LINK', 'UNI', 'MATIC', 'BNB', 'ARB', 'OP', 'AVAX'];
 const PROTOCOL_OPTIONS = ['Uniswap', 'Aave', 'Compound', 'Curve', 'Balancer', 'PancakeSwap', 'QuickSwap'];
@@ -76,6 +121,12 @@ export default function ScannerDashboard() {
   const [savedCriteria, setSavedCriteria] = useState<any[]>([]);
   const [saveName, setSaveName] = useState('');
   const [showSaveModal, setShowSaveModal] = useState(false);
+
+  // Analytics state
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [analytics, setAnalytics] = useState<WalletAnalytics | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
 
   const handleScan = async () => {
     setLoading(true);
@@ -118,6 +169,26 @@ export default function ScannerDashboard() {
   useEffect(() => {
     loadSavedCriteria();
   }, [loadSavedCriteria]);
+
+  // Fetch analytics for a wallet
+  const fetchAnalytics = async (walletId: string) => {
+    setAnalyticsLoading(true);
+    setSelectedWallet(walletId);
+    try {
+      const response = await fetch(`/api/analytics/${walletId}`);
+      const result = await response.json();
+      if (result.success) {
+        setAnalytics(result.data);
+        setShowAnalytics(true);
+      } else {
+        console.error('Failed to fetch analytics:', result.error);
+      }
+    } catch (err) {
+      console.error('Failed to fetch analytics:', err);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  };
 
   const sortedResults = [...results].sort((a, b) => {
     const aVal = a[sortBy] || 0;
@@ -525,14 +596,27 @@ export default function ScannerDashboard() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <a
-                        href={`https://etherscan.io/address/${wallet.address}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </a>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => fetchAnalytics(wallet.address)}
+                          disabled={analyticsLoading && selectedWallet === wallet.address}
+                          className="text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300 transition-colors text-xs font-medium px-2 py-1 bg-purple-100 dark:bg-purple-900/30 rounded-lg"
+                        >
+                          {analyticsLoading && selectedWallet === wallet.address ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            'Analytics'
+                          )}
+                        </button>
+                        <a
+                          href={`https://etherscan.io/address/${wallet.address}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -551,6 +635,130 @@ export default function ScannerDashboard() {
           </span>
         </div>
       </div>
+
+      {/* Analytics Modal */}
+      {showAnalytics && analytics && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-xl">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                  Wallet Analytics
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">
+                  {selectedWallet ? formatAddress(selectedWallet) : ''}
+                </p>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowAnalytics(false);
+                  setAnalytics(null);
+                  setSelectedWallet(null);
+                }} 
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              </button>
+            </div>
+            
+            {/* Scores */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-center">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Wallet Score</p>
+                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                  {Math.round(analytics.walletScore)}
+                </p>
+              </div>
+              <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg text-center">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Smart Money</p>
+                <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                  {Math.round(analytics.smartMoneyScore)}
+                </p>
+              </div>
+              <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg text-center">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Win Rate</p>
+                <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                  {analytics.winRate.overall.toFixed(1)}%
+                </p>
+              </div>
+              <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg text-center">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Profitability</p>
+                <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+                  {Math.round(analytics.profitabilityScore)}
+                </p>
+              </div>
+            </div>
+            
+            {/* Performance */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+              <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Total PnL</p>
+                <p className={`text-xl font-bold ${analytics.pnl.total >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                  ${analytics.pnl.total.toLocaleString()}
+                </p>
+              </div>
+              <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                <p className="text-sm text-gray-500 dark:text-gray-400">ROI</p>
+                <p className={`text-xl font-bold ${analytics.roi.total >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                  {analytics.roi.total.toFixed(2)}%
+                </p>
+              </div>
+              <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Max Drawdown</p>
+                <p className="text-xl font-bold text-red-600 dark:text-red-400">
+                  {analytics.drawdown.max.toFixed(2)}%
+                </p>
+              </div>
+            </div>
+            
+            {/* Behavior */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+              <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Trades</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">
+                  {analytics.tradingFrequency.average.toFixed(1)}/day
+                </p>
+                <p className="text-xs text-gray-400">{analytics.consistency.streak} month streak</p>
+              </div>
+              <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Early Entry</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">
+                  {Math.round(analytics.earlyEntryBehavior.score)}
+                </p>
+                <p className="text-xs text-gray-400">{analytics.earlyEntryBehavior.earlyEntries} early entries</p>
+              </div>
+              <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Accumulation</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">
+                  {Math.round(analytics.accumulationBehavior.score)}
+                </p>
+                <p className="text-xs text-gray-400">{analytics.accumulationBehavior.accumulationWallets} tokens</p>
+              </div>
+            </div>
+            
+            {/* Chain & Protocol Preference */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Chain Preference</p>
+                {Object.entries(analytics.chainPreference).slice(0, 5).map(([chain, percentage]) => (
+                  <div key={chain} className="flex justify-between text-sm py-1">
+                    <span className="text-gray-600 dark:text-gray-400">{chain}</span>
+                    <span className="text-gray-900 dark:text-white font-medium">{percentage.toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
+              <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Top Tokens</p>
+                {analytics.tokenPreference.slice(0, 5).map((token: string) => (
+                  <div key={token} className="text-sm py-1 text-gray-600 dark:text-gray-400">
+                    • {token}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

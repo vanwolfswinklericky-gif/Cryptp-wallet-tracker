@@ -62,8 +62,8 @@ model User {
   auditLogs      AuditLog[]
   apiKeys        ApiKey[]
   sessions       Session[]
-  scannerFilters ScannerFilter[]
-  userPreference UserPreference? // ✅ Fixed: Added missing relation
+  scannerFilters ScannerFilter[]  // Updated relation
+  userPreference UserPreference?
 
   @@index([email])
   @@index([createdAt])
@@ -296,24 +296,47 @@ model Session {
   @@index([isActive])
 }
 
-// ✅ SCANNER FILTER - Updated
+// ✅ SCANNER FILTER - ENHANCED with all dashboard criteria
 model ScannerFilter {
-  id         String    @id @default(cuid())
-  name       String
-  filter     Json
-  userId     String?
-  user       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-  isPublic   Boolean   @default(true)
-  isActive   Boolean   @default(true)
-  usageCount Int       @default(0)
-  lastUsedAt DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-
+  id            String   @id @default(cuid())
+  name          String
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  // Chain selection
+  chain         Chain?
+  
+  // Performance filters
+  minPnL        Float?
+  maxPnL        Float?
+  minWinRate    Float?
+  minTrades     Int?
+  minPerformance Float?  // 90-day performance
+  maxDrawdown   Float?
+  minWalletScore Int?
+  
+  // Preferences
+  preferredTokens    String[] @default([])
+  preferredProtocols String[] @default([])
+  
+  // Metadata
+  isPublic      Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  usageCount    Int      @default(0)
+  lastUsedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Raw filter JSON for backward compatibility and extensibility
+  filter        Json?    @default("{}")
+  
   @@unique([name, userId])
   @@index([userId])
   @@index([isPublic])
   @@index([isActive])
+  @@index([chain])
+  @@index([minWalletScore])
+  @@index([usageCount])
 }
 
 // ✅ SCANNED WALLET - Updated
