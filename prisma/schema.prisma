@@ -49,7 +49,7 @@ model User {
   name          String?
   avatar        String?
   emailVerified DateTime?
-  passwordHash  String? // For future auth
+  passwordHash  String?
   preferences   Json      @default("{}")
   role          UserRole  @default(USER)
   lastLoginAt   DateTime?
@@ -57,13 +57,14 @@ model User {
   updatedAt     DateTime  @updatedAt
 
   // Relations
-  wallets        Wallet[]
-  addressBook    AddressBookEntry[]
-  auditLogs      AuditLog[]
-  apiKeys        ApiKey[]
-  sessions       Session[]
-  scannerFilters ScannerFilter[]  // Updated relation
-  userPreference UserPreference?
+  wallets           Wallet[]
+  addressBook       AddressBookEntry[]
+  auditLogs         AuditLog[]
+  apiKeys           ApiKey[]
+  sessions          Session[]
+  scannerFilters    ScannerFilter[]
+  userPreference    UserPreference?
+  copyTradeAlerts   CopyTradeAlert[]   // ✅ NEW: Copy trading alerts
 
   @@index([email])
   @@index([createdAt])
@@ -94,11 +95,12 @@ model Wallet {
   scanCount     Int       @default(0)
 
   // Relations
-  metrics      WalletMetric[]
-  transactions WalletTransaction[]
-  scans        ScannedWallet[]
-  addressBook  AddressBookEntry[]  @relation("WalletAddressBook")
-  dexTrades    DexTrade[]
+  metrics         WalletMetric[]
+  transactions    WalletTransaction[]
+  scans           ScannedWallet[]
+  addressBook     AddressBookEntry[]  @relation("WalletAddressBook")
+  dexTrades       DexTrade[]
+  copyTradeAlerts CopyTradeAlert[]    // ✅ NEW: Copy trading alerts for this wallet
 
   @@index([userId, isDeleted])
   @@index([address, chain])
@@ -477,4 +479,118 @@ model UserPreference {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+}
+
+// ============================================
+// ✅ NEW: COPY TRADING MODELS
+// ============================================
+
+// ✅ COPY TRADING - Alert configuration
+model CopyTradeAlert {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Which wallet to monitor
+  walletId      String
+  wallet        Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  
+  // What to monitor
+  monitorBuy    Boolean  @default(true)
+  monitorSell   Boolean  @default(true)
+  monitorSwap   Boolean  @default(true)
+  monitorSend   Boolean  @default(false)
+  monitorReceive Boolean @default(false)
+  
+  // Optional filters
+  minValueUsd   Float?   // Minimum transaction value to trigger
+  maxValueUsd   Float?   // Maximum transaction value
+  tokenWhitelist String[] @default([]) // Only these tokens
+  tokenBlacklist String[] @default([]) // Exclude these tokens
+  
+  // Webhook configuration
+  webhookUrl    String
+  webhookSecret String?   // For HMAC signing
+  isActive      Boolean  @default(true)
+  
+  // Rate limiting
+  maxAlertsPerDay Int    @default(50)
+  alertsToday    Int     @default(0)
+  lastAlertAt    DateTime?
+  alertCooldown  Int     @default(60) // Seconds between alerts
+  
+  // Stats
+  totalAlerts    Int     @default(0)
+  lastError      String? @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  // Relations
+  logs          CopyTradeAlertLog[]
+  webhookQueue  WebhookQueue[]
+  
+  @@unique([userId, walletId])
+  @@index([userId])
+  @@index([walletId])
+  @@index([isActive])
+}
+
+// ✅ COPY TRADING - Alert history
+model CopyTradeAlertLog {
+  id            String   @id @default(cuid())
+  alertId       String
+  alert         CopyTradeAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  
+  // Transaction details
+  txHash        String
+  eventType     String   // BUY, SELL, SWAP, SEND, RECEIVE
+  tokenAddress  String
+  tokenSymbol   String
+  tokenName     String?
+  amount        Float
+  valueUsd      Float
+  price         Float?
+  portfolioPercentage Float?
+  
+  // Additional context
+  fromAddress   String?
+  toAddress     String?
+  chain         String
+  
+  // Webhook delivery
+  webhookStatus String   // PENDING, SUCCESS, FAILED
+  webhookResponse String? @db.Text
+  webhookError  String?  @db.Text
+  retryCount    Int      @default(0)
+  deliveredAt   DateTime?
+  
+  createdAt     DateTime @default(now())
+  
+  @@index([alertId])
+  @@index([txHash])
+  @@index([eventType])
+  @@index([createdAt(sort: Desc)])
+  @@index([webhookStatus])
+}
+
+// ✅ COPY TRADING - Webhook delivery queue
+model WebhookQueue {
+  id            String   @id @default(cuid())
+  alertId       String
+  alert         CopyTradeAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  
+  payload       Json
+  url           String
+  secret        String?
+  retryCount    Int      @default(0)
+  maxRetries    Int      @default(3)
+  nextRetryAt   DateTime
+  status        String   // PENDING, PROCESSING, SUCCESS, FAILED
+  error         String?  @db.Text
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([status])
+  @@index([nextRetryAt])
 }
