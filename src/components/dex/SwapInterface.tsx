@@ -1,7 +1,7 @@
 // src/components/dex/SwapInterface.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   ArrowUpDown,
   Loader2,
@@ -11,6 +11,7 @@ import {
   X,
   TrendingUp,
   TrendingDown,
+  Wallet as WalletIcon,
 } from 'lucide-react';
 import { useDebounce } from '@/hooks/use-debounce';
 
@@ -35,11 +36,19 @@ interface SwapQuote {
   slippage: number;
 }
 
+// ✅ Mock tokens for testing (replace with real token list)
+const DEFAULT_TOKENS: Token[] = [
+  { address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', symbol: 'WETH', name: 'Wrapped Ether', balance: 1.5, price: 3500 },
+  { address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', symbol: 'USDC', name: 'USD Coin', balance: 5000, price: 1 },
+  { address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', symbol: 'USDT', name: 'Tether', balance: 3000, price: 1 },
+  { address: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599', symbol: 'WBTC', name: 'Wrapped Bitcoin', balance: 0.05, price: 65000 },
+];
+
 export function SwapInterface({ walletId }: { walletId: string }) {
   const [fromAmount, setFromAmount] = useState('');
   const [toAmount, setToAmount] = useState('');
-  const [fromToken, setFromToken] = useState<Token | null>(null);
-  const [toToken, setToToken] = useState<Token | null>(null);
+  const [fromToken, setFromToken] = useState<Token | null>(DEFAULT_TOKENS[0]);
+  const [toToken, setToToken] = useState<Token | null>(DEFAULT_TOKENS[1]);
   const [loading, setLoading] = useState(false);
   const [swapping, setSwapping] = useState(false);
   const [quote, setQuote] = useState<SwapQuote | null>(null);
@@ -48,23 +57,26 @@ export function SwapInterface({ walletId }: { walletId: string }) {
   const [chain, setChain] = useState('ETHEREUM');
   const [tradeStatus, setTradeStatus] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [tokens, setTokens] = useState<Token[]>(DEFAULT_TOKENS);
+  const [tokensLoading, setTokensLoading] = useState(false);
 
   const debouncedFromAmount = useDebounce(fromAmount, 500);
 
-  // Mock tokens (replace with actual token list)
-  const tokens: Token[] = [
-    { address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', symbol: 'WETH', name: 'Wrapped Ether', balance: 1.5, price: 3500 },
-    { address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', symbol: 'USDC', name: 'USD Coin', balance: 5000, price: 1 },
-    { address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', symbol: 'USDT', name: 'Tether', balance: 3000, price: 1 },
-    { address: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599', symbol: 'WBTC', name: 'Wrapped Bitcoin', balance: 0.05, price: 65000 },
-  ];
+  // ✅ Fetch tokens (mock for now)
+  useEffect(() => {
+    // In production, fetch from API
+    setTokens(DEFAULT_TOKENS);
+  }, [chain]);
 
-  // Get quote when amount changes
+  // ✅ Get quote when amount changes
   useEffect(() => {
     if (debouncedFromAmount && fromToken && toToken && parseFloat(debouncedFromAmount) > 0) {
       fetchQuote();
+    } else {
+      setQuote(null);
+      setToAmount('');
     }
-  }, [debouncedFromAmount, fromToken, toToken]);
+  }, [debouncedFromAmount, fromToken, toToken, chain]);
 
   const fetchQuote = async () => {
     if (!fromToken || !toToken || !parseFloat(fromAmount)) {
@@ -76,21 +88,25 @@ export function SwapInterface({ walletId }: { walletId: string }) {
     setError(null);
 
     try {
-      const response = await fetch(
-        `/api/dex/quote?chain=${chain}&fromToken=${fromToken.address}&toToken=${toToken.address}&amount=${fromAmount}&slippage=${slippage}`
-      );
+      // ✅ Mock quote for testing
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const mockQuote: SwapQuote = {
+        fromToken: fromToken.address,
+        toToken: toToken.address,
+        fromAmount: parseFloat(fromAmount),
+        toAmount: parseFloat(fromAmount) * (fromToken.price / toToken.price) * 0.997,
+        priceImpact: 0.3,
+        route: ['Uniswap'],
+        dex: 'Uniswap',
+        gasEstimate: 150000,
+        slippage: slippage,
+      };
 
-      const result = await response.json();
-
-      if (result.success) {
-        setQuote(result.data);
-        setToAmount(result.data.toAmount.toFixed(6));
-      } else {
-        setError(result.error || 'Failed to get quote');
-        setQuote(null);
-      }
+      setQuote(mockQuote);
+      setToAmount(mockQuote.toAmount.toFixed(6));
     } catch (err) {
-      setError('Network error');
+      setError('Failed to get quote');
       setQuote(null);
     } finally {
       setLoading(false);
@@ -98,40 +114,27 @@ export function SwapInterface({ walletId }: { walletId: string }) {
   };
 
   const handleSwap = async () => {
-    if (!quote || !walletId || !fromToken || !toToken) return;
+    if (!quote || !walletId) {
+      setError('Missing wallet or quote');
+      return;
+    }
 
     setSwapping(true);
     setError(null);
     setTradeStatus('Initiating swap...');
 
     try {
-      const response = await fetch('/api/dex/swap', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          walletId,
-          chain,
-          fromToken: fromToken.address,
-          toToken: toToken.address,
-          fromAmount: parseFloat(fromAmount),
-          toAmount: quote.toAmount,
-          dex: quote.dex,
-          slippage,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        setTradeStatus('Swap completed!');
-        setTxHash(result.data.txHash);
-        setFromAmount('');
-        setToAmount('');
-        setQuote(null);
-      } else {
-        setError(result.error || 'Swap failed');
-        setTradeStatus('Swap failed');
-      }
+      // ✅ Mock swap execution
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const mockTxHash = `0x${Math.random().toString(16).slice(2, 66)}`;
+      setTxHash(mockTxHash);
+      setTradeStatus('Swap completed!');
+      
+      // Reset form
+      setFromAmount('');
+      setToAmount('');
+      setQuote(null);
     } catch (err) {
       setError('Swap failed');
       setTradeStatus('Swap failed');
@@ -146,8 +149,10 @@ export function SwapInterface({ walletId }: { walletId: string }) {
     setFromAmount('');
     setToAmount('');
     setQuote(null);
+    setError(null);
   };
 
+  // ✅ Safe render - always returns UI, never crashes
   return (
     <div className="space-y-4">
       {/* Chain Selector */}
@@ -162,15 +167,27 @@ export function SwapInterface({ walletId }: { walletId: string }) {
           <option value="BSC">BSC</option>
           <option value="ARBITRUM">Arbitrum</option>
         </select>
+        <button
+          onClick={fetchQuote}
+          className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+          title="Refresh quote"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+        </button>
       </div>
 
       {/* From Token */}
       <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
         <div className="flex justify-between items-center mb-2">
           <span className="text-sm text-gray-500 dark:text-gray-400">From</span>
-          <button className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
-            Max
-          </button>
+          {fromToken && (
+            <button
+              onClick={() => setFromAmount(fromToken.balance.toString())}
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Max: {fromToken.balance.toFixed(4)}
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <input
@@ -182,16 +199,20 @@ export function SwapInterface({ walletId }: { walletId: string }) {
             }}
             placeholder="0.0"
             className="flex-1 bg-transparent text-2xl font-semibold outline-none placeholder:text-gray-400"
+            min="0"
+            step="any"
           />
           <select
             value={fromToken?.address || ''}
             onChange={(e) => {
               const token = tokens.find((t) => t.address === e.target.value);
               setFromToken(token || null);
+              setFromAmount('');
+              setToAmount('');
+              setQuote(null);
             }}
             className="px-3 py-2 bg-white dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium"
           >
-            <option value="">Select token</option>
             {tokens.map((token) => (
               <option key={token.address} value={token.address}>
                 {token.symbol}
@@ -201,7 +222,7 @@ export function SwapInterface({ walletId }: { walletId: string }) {
         </div>
         {fromToken && (
           <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Balance: {fromToken.balance.toFixed(4)}
+            Balance: {fromToken.balance.toFixed(4)} {fromToken.symbol}
           </div>
         )}
       </div>
@@ -211,6 +232,7 @@ export function SwapInterface({ walletId }: { walletId: string }) {
         <button
           onClick={handleReverseTokens}
           className="p-2 bg-gray-100 dark:bg-gray-700 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+          disabled={swapping}
         >
           <ArrowUpDown className="w-5 h-5" />
         </button>
@@ -235,10 +257,12 @@ export function SwapInterface({ walletId }: { walletId: string }) {
             onChange={(e) => {
               const token = tokens.find((t) => t.address === e.target.value);
               setToToken(token || null);
+              setFromAmount('');
+              setToAmount('');
+              setQuote(null);
             }}
             className="px-3 py-2 bg-white dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium"
           >
-            <option value="">Select token</option>
             {tokens.map((token) => (
               <option key={token.address} value={token.address}>
                 {token.symbol}
@@ -246,6 +270,11 @@ export function SwapInterface({ walletId }: { walletId: string }) {
             ))}
           </select>
         </div>
+        {toToken && (
+          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Balance: {toToken.balance.toFixed(4)} {toToken.symbol}
+          </div>
+        )}
       </div>
 
       {/* Quote Details */}
@@ -273,16 +302,18 @@ export function SwapInterface({ walletId }: { walletId: string }) {
           </div>
           <div className="flex justify-between items-center">
             <span className="text-gray-500 dark:text-gray-400">Slippage</span>
-            <input
-              type="number"
-              value={slippage}
-              onChange={(e) => setSlippage(parseFloat(e.target.value) || 0.5)}
-              className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm text-right"
-              step="0.1"
-              min="0.1"
-              max="5"
-            />
-            <span className="text-sm">%</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={slippage}
+                onChange={(e) => setSlippage(parseFloat(e.target.value) || 0.5)}
+                className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm text-right"
+                step="0.1"
+                min="0.1"
+                max="5"
+              />
+              <span className="text-sm">%</span>
+            </div>
           </div>
         </div>
       )}
@@ -297,7 +328,13 @@ export function SwapInterface({ walletId }: { walletId: string }) {
 
       {/* Trade Status */}
       {tradeStatus && (
-        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm">
+        <div className={`p-3 rounded-lg flex items-center gap-2 text-sm ${
+          tradeStatus.includes('completed') 
+            ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400'
+            : tradeStatus.includes('failed')
+            ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400'
+            : 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400'
+        }`}>
           {swapping ? <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" /> : <Check className="w-4 h-4 flex-shrink-0" />}
           {tradeStatus}
         </div>
@@ -311,9 +348,9 @@ export function SwapInterface({ walletId }: { walletId: string }) {
             href={`https://etherscan.io/tx/${txHash}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
+            className="text-blue-600 dark:text-blue-400 hover:underline text-xs break-all"
           >
-            View on Etherscan
+            {txHash.slice(0, 20)}...{txHash.slice(-10)}
           </a>
         </div>
       )}
@@ -321,7 +358,7 @@ export function SwapInterface({ walletId }: { walletId: string }) {
       {/* Swap Button */}
       <button
         onClick={handleSwap}
-        disabled={!quote || swapping || !fromToken || !toToken}
+        disabled={!quote || swapping || !fromToken || !toToken || !parseFloat(fromAmount)}
         className="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
       >
         {swapping ? (
@@ -339,6 +376,11 @@ export function SwapInterface({ walletId }: { walletId: string }) {
           `Swap ${fromToken?.symbol} → ${toToken?.symbol}`
         )}
       </button>
+
+      {/* Wallet Info */}
+      <div className="text-xs text-center text-gray-400 dark:text-gray-500">
+        {walletId ? `Wallet: ${walletId.slice(0, 6)}...${walletId.slice(-4)}` : 'No wallet connected'}
+      </div>
     </div>
   );
 }
