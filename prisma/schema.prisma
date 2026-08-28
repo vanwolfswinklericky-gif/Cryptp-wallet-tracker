@@ -25,6 +25,23 @@ enum Chain {
   SOLANA
 }
 
+enum DexStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum DexName {
+  UNISWAP
+  UNISWAP_V3
+  PANCAKESWAP
+  QUICKSWAP
+  SUSHISWAP
+  ONEINCH
+  PARASWAP
+}
+
 // ✅ USER MODEL - Enterprise-grade user management
 model User {
   id            String          @id @default(cuid())
@@ -80,6 +97,7 @@ model Wallet {
   transactions WalletTransaction[]
   scans       ScannedWallet[]
   addressBook AddressBookEntry[] @relation("WalletAddressBook")
+  dexTrades   DexTrade[]
   
   @@index([userId, isDeleted])
   @@index([address, chain])
@@ -319,4 +337,120 @@ model ScannedWallet {
   @@index([score(sort: Desc)])
   @@index([scanId])
   @@index([isProcessed])
+}
+
+// ✅ DEX TRADE - NEW: Track swap history
+model DexTrade {
+  id            String   @id @default(cuid())
+  walletId      String
+  wallet        Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  
+  txHash        String   @unique
+  chain         String
+  dexName       String   // Uniswap, PancakeSwap, 1inch, etc.
+  
+  fromToken     String   // Token address
+  fromSymbol    String
+  fromAmount    Float
+  toToken       String   // Token address
+  toSymbol      String
+  toAmount      Float
+  
+  price         Float?   // Price at time of swap
+  slippage      Float?   // Slippage percentage
+  gasUsed       Float?
+  gasPrice      Float?
+  
+  status        String   // pending, completed, failed
+  timestamp     DateTime @default(now())
+  completedAt   DateTime?
+  
+  metadata      Json     @default("{}")
+  
+  @@index([walletId, timestamp(sort: Desc)])
+  @@index([txHash])
+  @@index([chain, dexName])
+  @@index([status])
+}
+
+// ✅ DEX ROUTE - NEW: For optimal swap routes
+model DexRoute {
+  id            String   @id @default(cuid())
+  chain         String
+  dexName       String
+  fromToken     String
+  toToken       String
+  fromAmount    Float
+  toAmount      Float
+  priceImpact   Float
+  gasEstimate   Float
+  route         Json     // Array of swap steps
+  isOptimal     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  expiresAt     DateTime
+  
+  @@index([chain, fromToken, toToken])
+  @@index([isOptimal])
+}
+
+// ✅ TOKEN PRICE - NEW: For real-time pricing
+model TokenPrice {
+  id            String   @id @default(cuid())
+  chain         String
+  tokenAddress  String
+  symbol        String
+  name          String?
+  priceUsd      Float
+  priceChange24h Float
+  volume24h     Float
+  marketCap     Float?
+  liquidity     Float?
+  timestamp     DateTime @default(now())
+  
+  @@unique([chain, tokenAddress, timestamp])
+  @@index([chain, tokenAddress, timestamp(sort: Desc)])
+  @@index([symbol])
+  @@index([priceUsd])
+}
+
+// ✅ TOKEN LIST - NEW: For token management
+model Token {
+  id            String   @id @default(cuid())
+  chain         String
+  address       String
+  symbol        String
+  name          String
+  decimals      Int      @default(18)
+  logoURI       String?
+  isVerified    Boolean  @default(false)
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@unique([chain, address])
+  @@index([chain, symbol])
+  @@index([isVerified])
+  @@index([isDefault])
+}
+
+// ✅ USER PREFERENCES - NEW: User-specific settings
+model UserPreference {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // DEX preferences
+  defaultSlippage Float  @default(0.5)
+  preferredDex   String?
+  autoRouting    Boolean @default(true)
+  
+  // UI preferences
+  theme          String  @default("dark")
+  language       String  @default("en")
+  notifications  Boolean @default(true)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([userId])
 }

@@ -19,6 +19,7 @@ import {
   Zap,
   Search,
   TrendingUp as TrendingUpIcon,
+  ArrowUpDown, // ✅ Added for DEX tab
 } from 'lucide-react';
 
 import DashboardLayout from '@/components/DashboardLayout';
@@ -36,6 +37,9 @@ import PortfolioHistory from '@/components/dashboard/PortfolioHistory';
 import ScannerDashboard from '@/components/scanner/ScannerDashboard';
 import { WalletManagement } from '@/components/wallets/WalletManagement';
 import { ExportButton } from '@/components/export/ExportButton';
+// ✅ NEW: DEX Imports
+import { SwapInterface } from '@/components/dex/SwapInterface';
+import { TradeHistory } from '@/components/dex/TradeHistory';
 
 export default function Home() {
   const [address, setAddress] = useState('');
@@ -46,15 +50,17 @@ export default function Home() {
   const [allocation, setAllocation] = useState<{ name: string; value: number; color: string }[]>([]);
   const [showNFTs, setShowNFTs] = useState(true);
   const [hasNFTs, setHasNFTs] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'tokens' | 'nfts' | 'history' | 'scanner' | 'pnl' | 'wallets'>('overview');
+  // ✅ Updated to include 'dex'
+  const [activeTab, setActiveTab] = useState<'overview' | 'tokens' | 'nfts' | 'history' | 'scanner' | 'pnl' | 'wallets' | 'dex'>('overview');
 
-  // Tab configuration
+  // ✅ Tab configuration with DEX
   const tabs = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'tokens', label: 'Tokens', icon: Coins },
     { id: 'nfts', label: 'NFTs', icon: Image },
     { id: 'history', label: 'History', icon: Clock },
     { id: 'scanner', label: 'Scanner', icon: Target },
+    { id: 'dex', label: 'Swap', icon: ArrowUpDown }, // ✅ NEW DEX TAB
     { id: 'pnl', label: 'PnL', icon: TrendingUpIcon },
     { id: 'wallets', label: 'Wallets', icon: Wallet },
   ] as const;
@@ -356,7 +362,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* ✅ 7 Tabs */}
+            {/* ✅ 8 Tabs with DEX */}
             <div className="flex flex-wrap gap-1 mb-6 p-1 bg-gray-100 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
@@ -378,6 +384,9 @@ export default function Home() {
                       <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                     )}
                     {tab.id === 'nfts' && hasNFTs && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+                    )}
+                    {tab.id === 'dex' && (
                       <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
                     )}
                   </button>
@@ -477,6 +486,43 @@ export default function Home() {
               {activeTab === 'scanner' && (
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 sm:p-6">
                   <ScannerDashboard />
+                </div>
+              )}
+
+              {/* ✅ DEX Swap Tab */}
+              {activeTab === 'dex' && (
+                <div className="space-y-6">
+                  {/* Swap Interface */}
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                          Swap Tokens
+                        </h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Swap tokens across multiple DEXes with best price routing
+                        </p>
+                      </div>
+                      <span className="text-xs px-2 py-1 bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-full flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+                        Powered by 1inch
+                      </span>
+                    </div>
+                    <SwapInterface walletId={data?.id || address || ''} />
+                  </div>
+
+                  {/* Trade History */}
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        Trade History
+                      </h3>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        Recent swaps
+                      </span>
+                    </div>
+                    <TradeHistory walletId={data?.id || address || ''} />
+                  </div>
                 </div>
               )}
 
