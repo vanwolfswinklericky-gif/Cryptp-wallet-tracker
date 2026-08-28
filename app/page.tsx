@@ -19,7 +19,8 @@ import {
   Zap,
   Search,
   TrendingUp as TrendingUpIcon,
-  ArrowUpDown, // ✅ Added for DEX tab
+  ArrowUpDown,
+  Bell, // ✅ Added for Copy-Trading
 } from 'lucide-react';
 
 import DashboardLayout from '@/components/DashboardLayout';
@@ -37,9 +38,10 @@ import PortfolioHistory from '@/components/dashboard/PortfolioHistory';
 import ScannerDashboard from '@/components/scanner/ScannerDashboard';
 import { WalletManagement } from '@/components/wallets/WalletManagement';
 import { ExportButton } from '@/components/export/ExportButton';
-// ✅ NEW: DEX Imports
 import { SwapInterface } from '@/components/dex/SwapInterface';
 import { TradeHistory } from '@/components/dex/TradeHistory';
+// ✅ NEW: Copy-Trading Import
+import { CopyTradeAlerts } from '@/components/copy-trading/CopyTradeAlerts';
 
 export default function Home() {
   const [address, setAddress] = useState('');
@@ -50,17 +52,18 @@ export default function Home() {
   const [allocation, setAllocation] = useState<{ name: string; value: number; color: string }[]>([]);
   const [showNFTs, setShowNFTs] = useState(true);
   const [hasNFTs, setHasNFTs] = useState(false);
-  // ✅ Updated to include 'dex'
-  const [activeTab, setActiveTab] = useState<'overview' | 'tokens' | 'nfts' | 'history' | 'scanner' | 'pnl' | 'wallets' | 'dex'>('overview');
+  // ✅ Updated to include 'copy-trading'
+  const [activeTab, setActiveTab] = useState<'overview' | 'tokens' | 'nfts' | 'history' | 'scanner' | 'dex' | 'pnl' | 'wallets' | 'copy-trading'>('overview');
 
-  // ✅ Tab configuration with DEX
+  // ✅ Tab configuration with Copy-Trading
   const tabs = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'tokens', label: 'Tokens', icon: Coins },
     { id: 'nfts', label: 'NFTs', icon: Image },
     { id: 'history', label: 'History', icon: Clock },
     { id: 'scanner', label: 'Scanner', icon: Target },
-    { id: 'dex', label: 'Swap', icon: ArrowUpDown }, // ✅ NEW DEX TAB
+    { id: 'dex', label: 'Swap', icon: ArrowUpDown },
+    { id: 'copy-trading', label: 'Copy Trading', icon: Bell }, // ✅ NEW TAB
     { id: 'pnl', label: 'PnL', icon: TrendingUpIcon },
     { id: 'wallets', label: 'Wallets', icon: Wallet },
   ] as const;
@@ -246,7 +249,6 @@ export default function Home() {
             </div>
             <div className="cwt-header-right">
               <div className="cwt-live-badge">Live</div>
-              {/* ✅ Export Button in Header */}
               {data && <ExportButton type="holdings" label="Export" variant="outline" />}
               <ThemeToggle />
             </div>
@@ -362,7 +364,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* ✅ 8 Tabs with DEX */}
+            {/* ✅ 9 Tabs with Copy-Trading */}
             <div className="flex flex-wrap gap-1 mb-6 p-1 bg-gray-100 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
@@ -388,6 +390,9 @@ export default function Home() {
                     )}
                     {tab.id === 'dex' && (
                       <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+                    )}
+                    {tab.id === 'copy-trading' && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />
                     )}
                   </button>
                 );
@@ -489,10 +494,9 @@ export default function Home() {
                 </div>
               )}
 
-              {/* ✅ DEX Swap Tab */}
+              {/* DEX Swap Tab */}
               {activeTab === 'dex' && (
                 <div className="space-y-6">
-                  {/* Swap Interface */}
                   <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
                     <div className="flex items-center justify-between mb-4">
                       <div>
@@ -510,8 +514,6 @@ export default function Home() {
                     </div>
                     <SwapInterface walletId={data?.id || address || ''} />
                   </div>
-
-                  {/* Trade History */}
                   <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -526,7 +528,29 @@ export default function Home() {
                 </div>
               )}
 
-              {/* ✅ PnL Tab */}
+              {/* ✅ COPY-TRADING TAB */}
+              {activeTab === 'copy-trading' && (
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                        <Bell className="w-5 h-5 text-yellow-500" />
+                        Copy-Trading Alerts
+                      </h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Monitor wallets and receive real-time webhook alerts for trades
+                      </p>
+                    </div>
+                    <span className="text-xs px-2 py-1 bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 rounded-full flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />
+                      Real-time
+                    </span>
+                  </div>
+                  <CopyTradeAlerts />
+                </div>
+              )}
+
+              {/* PnL Tab */}
               {activeTab === 'pnl' && (
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
@@ -579,7 +603,7 @@ export default function Home() {
                 </div>
               )}
 
-              {/* ✅ Wallets Management Tab */}
+              {/* Wallets Management Tab */}
               {activeTab === 'wallets' && (
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
                   <div className="flex items-center justify-between mb-4">
