@@ -1,4 +1,4 @@
-// prisma/schema.prisma
+ // prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,7 +7,7 @@ datasource db {
   provider = "postgresql"
 }
 
-// ✅ ENUMS
+// ENUMS
 enum UserRole {
   USER
   ADMIN
@@ -42,36 +42,99 @@ enum DexName {
   PARASWAP
 }
 
-// ✅ USER MODEL - Enterprise-grade user management
+enum DataProvider {
+  ALCHEMY
+  MORALIS
+  INFURA
+  THEGRAPH
+  DEFILLAMA
+}
+
+// USER AND AUTH
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
+  id            String          @id @default(cuid())
+  email         String          @unique
   name          String?
   avatar        String?
   emailVerified DateTime?
   passwordHash  String?
-  preferences   Json      @default("{}")
-  role          UserRole  @default(USER)
+  preferences   Json            @default("{}")
+  role          UserRole        @default(USER)
   lastLoginAt   DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  // Relations
-  wallets           Wallet[]
-  addressBook       AddressBookEntry[]
-  auditLogs         AuditLog[]
-  apiKeys           ApiKey[]
-  sessions          Session[]
-  scannerFilters    ScannerFilter[]
-  userPreference    UserPreference?
-  copyTradeAlerts   CopyTradeAlert[]   // ✅ NEW: Copy trading alerts
-
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  
+  wallets       Wallet[]
+  addressBook   AddressBookEntry[]
+  auditLogs     AuditLog[]
+  apiKeys       ApiKey[]
+  sessions      Session[]
+  scannerFilters ScannerFilter[]
+  userPreference UserPreference?
+  copyTradeAlerts CopyTradeAlert[]
+  walletSubscriptions WalletSubscription[]
+  savedWallets SavedWallet[]
+  
   @@index([email])
   @@index([createdAt])
   @@index([role])
 }
 
-// ✅ WALLET MODEL - Complete with all fields
+model Session {
+  id            String          @id @default(cuid())
+  userId        String
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token         String          @unique
+  expiresAt     DateTime
+  userAgent     String?
+  ipAddress     String?
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  
+  @@index([userId])
+  @@index([token])
+  @@index([isActive])
+}
+
+model ApiKey {
+  id            String          @id @default(cuid())
+  userId        String
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  keyHash       String          @unique
+  lastUsedAt    DateTime?
+  expiresAt     DateTime?
+  isRevoked     Boolean         @default(false)
+  permissions   Json            @default("{}")
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  
+  @@index([userId])
+  @@index([keyHash])
+  @@index([isRevoked])
+}
+
+model UserPreference {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  defaultSlippage Float  @default(0.5)
+  preferredDex   String?
+  autoRouting    Boolean @default(true)
+  
+  theme          String  @default("dark")
+  language       String  @default("en")
+  notifications  Boolean @default(true)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([userId])
+}
+
+// WALLET CORE
 model Wallet {
   id          String   @id @default(cuid())
   address     String   @unique
@@ -82,452 +145,520 @@ model Wallet {
   isVerified  Boolean  @default(false)
   isScam      Boolean  @default(false)
   metadata    Json     @default("{}")
-
-  // Enterprise wallet management fields
-  userId        String?
-  user          User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-  notes         String?   @db.Text
-  isFavorite    Boolean   @default(false)
-  isArchived    Boolean   @default(false)
-  isDeleted     Boolean   @default(false)
-  deletedAt     DateTime?
+  
+  userId      String?
+  user        User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  notes       String?         @db.Text
+  isFavorite  Boolean         @default(false)
+  isArchived  Boolean         @default(false)
+  isDeleted   Boolean         @default(false)
+  deletedAt   DateTime?
   lastScannedAt DateTime?
-  scanCount     Int       @default(0)
-
-  // Relations
-  metrics         WalletMetric[]
-  transactions    WalletTransaction[]
-  scans           ScannedWallet[]
-  addressBook     AddressBookEntry[]  @relation("WalletAddressBook")
-  dexTrades       DexTrade[]
-  copyTradeAlerts CopyTradeAlert[]    // ✅ NEW: Copy trading alerts for this wallet
-
+  scanCount   Int             @default(0)
+  
+  lastDataFetch DateTime?
+  dataProvider  DataProvider?
+  dataProviderId String?
+  dataSyncStatus String?
+  dataSyncError String?        @db.Text
+  dataSyncAttempts Int         @default(0)
+  
+  metrics     WalletMetric[]
+  transactions Transaction[]
+  tokenTransfers TokenTransfer[]
+  trades      Trade[]
+  portfolioSnapshots PortfolioSnapshot[]
+  scans       ScannedWallet[]
+  addressBook AddressBookEntry[] @relation("WalletAddressBook")
+  dexTrades   DexTrade[]
+  copyTradeAlerts CopyTradeAlert[]
+  subscriptions WalletSubscription[]
+  savedByUsers SavedWallet[]
+  walletHistory WalletHistory[]
+  walletTags WalletTag[]
+  
   @@index([userId, isDeleted])
   @@index([address, chain])
   @@index([isFavorite])
   @@index([isArchived])
   @@index([deletedAt])
   @@index([lastScannedAt])
+  @@index([dataSyncStatus])
+  @@index([lastDataFetch])
 }
 
-// ✅ WALLET METRIC - Enhanced metrics
-model WalletMetric {
-  id        String   @id @default(cuid())
-  walletId  String
-  wallet    Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  chain     String
-  timestamp DateTime @default(now())
-
-  // PnL & Performance
-  totalPnl   Float @default(0)
-  totalRoi   Float @default(0)
-  winRate    Float @default(0)
-  tradeCount Int   @default(0)
-  winCount   Int   @default(0)
-  lossCount  Int   @default(0)
-
-  // Trade Statistics
-  averageTrade  Float @default(0)
-  bestTrade     Float @default(0)
-  worstTrade    Float @default(0)
-  totalVolume   Float @default(0)
-  averageVolume Float @default(0)
-
-  // Risk Metrics
-  maxDrawdown     Float @default(0)
-  currentDrawdown Float @default(0)
-  sharpeRatio     Float @default(0)
-  volatility      Float @default(0)
-
-  // Scoring
-  walletScore      Int @default(0)
-  riskScore        Int @default(0)
-  consistencyScore Int @default(0)
-
-  // Portfolio
-  portfolioValue Float @default(0)
-  tokensCount    Int   @default(0)
-  nftsCount      Int   @default(0)
-
-  // Activity
-  activeDays Int       @default(0)
-  lastTrade  DateTime?
-  firstTrade DateTime?
-
-  // Preferences
-  preferredTokens    String[] @default([])
+model WalletHistory {
+  id            String   @id @default(cuid())
+  walletId      String
+  wallet        Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  
+  month         String
+  totalPnL      Float    @default(0)
+  totalRoi      Float    @default(0)
+  winRate       Float    @default(0)
+  tradeCount    Int      @default(0)
+  totalVolume   Float    @default(0)
+  maxDrawdown   Float    @default(0)
+  walletScore   Int      @default(0)
+  smartMoneyScore Float  @default(0)
+  
+  activeDays    Int      @default(0)
+  avgHoldingPeriod Float @default(0)
+  tradingFrequency Float @default(0)
+  avgPositionSize Float  @default(0)
+  
+  preferredTokens String[] @default([])
   preferredProtocols String[] @default([])
+  
+  createdAt     DateTime @default(now())
+  
+  @@unique([walletId, month])
+  @@index([walletId])
+  @@index([month])
+  @@index([walletScore(sort: Desc)])
+}
 
-  // Performance
+model WalletTag {
+  id            String   @id @default(cuid())
+  walletId      String
+  wallet        Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  tag           String
+  source        String
+  confidence    Float?
+  createdAt     DateTime @default(now())
+  
+  @@unique([walletId, tag, source])
+  @@index([walletId])
+  @@index([tag])
+}
+
+model SavedWallet {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  walletId      String
+  wallet        Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  
+  @@unique([userId, walletId])
+  @@index([userId])
+  @@index([walletId])
+}
+
+model WalletSubscription {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  walletId      String
+  wallet        Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  
+  type          String
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@unique([userId, walletId, type])
+  @@index([userId])
+  @@index([walletId])
+  @@index([isActive])
+}
+
+// WALLET METRICS
+model WalletMetric {
+  id          String   @id @default(cuid())
+  walletId    String
+  wallet      Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  chain       String
+  timestamp   DateTime @default(now())
+  
+  totalPnl    Float    @default(0)
+  totalRoi    Float    @default(0)
+  winRate     Float    @default(0)
+  tradeCount  Int      @default(0)
+  winCount    Int      @default(0)
+  lossCount   Int      @default(0)
+  
+  averageTrade Float   @default(0)
+  bestTrade   Float    @default(0)
+  worstTrade  Float    @default(0)
+  totalVolume Float    @default(0)
+  averageVolume Float  @default(0)
+  
+  maxDrawdown Float    @default(0)
+  currentDrawdown Float @default(0)
+  sharpeRatio Float    @default(0)
+  volatility  Float    @default(0)
+  
+  walletScore Int      @default(0)
+  riskScore   Int      @default(0)
+  consistencyScore Int @default(0)
+  smartMoneyScore Float @default(0)
+  
+  portfolioValue Float @default(0)
+  tokensCount Int      @default(0)
+  nftsCount   Int      @default(0)
+  
+  activeDays  Int      @default(0)
+  lastTrade   DateTime?
+  firstTrade  DateTime?
+  
+  preferredTokens String[] @default([])
+  preferredProtocols String[] @default([])
+  
   performance24h Float @default(0)
   performance7d  Float @default(0)
   performance30d Float @default(0)
   performance90d Float @default(0)
-
-  // Additional metrics
-  totalGasUsed       Float @default(0)
-  averageGasPrice    Float @default(0)
-  uniqueInteractions Int   @default(0)
-  successRate        Float @default(0)
-
-  metadata Json @default("{}")
-
+  
+  totalGasUsed Float   @default(0)
+  averageGasPrice Float @default(0)
+  uniqueInteractions Int @default(0)
+  successRate   Float   @default(0)
+  sortinoRatio  Float   @default(0)
+  calmarRatio   Float   @default(0)
+  
+  metadata    Json     @default("{}")
+  
   @@unique([walletId, chain, timestamp])
   @@index([walletId, chain, timestamp(sort: Desc)])
   @@index([walletScore(sort: Desc)])
+  @@index([smartMoneyScore(sort: Desc)])
   @@index([performance7d(sort: Desc)])
   @@index([performance30d(sort: Desc)])
 }
 
-// ✅ WALLET TRANSACTION - Enhanced
-model WalletTransaction {
-  id              String   @id @default(cuid())
-  walletId        String
-  wallet          Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  chain           String
-  hash            String   @unique
-  fromAddress     String?
-  toAddress       String?
-  tokenAddress    String?
-  tokenSymbol     String?
-  amount          Float    @default(0)
-  valueUsd        Float    @default(0)
-  priceUsd        Float    @default(0)
-  timestamp       DateTime @default(now())
-  blockNumber     BigInt?
-  transactionType String?
-  status          String?
-  gasUsed         Float?
-  gasPrice        Float?
-
-  // Enhanced transaction fields
-  isInternal  Boolean   @default(false)
-  isError     Boolean   @default(false)
-  confirmedAt DateTime?
-  receipt     Json?     @default("{}")
-  decodedData Json?     @default("{}")
-
-  @@index([walletId, timestamp(sort: Desc)])
-  @@index([tokenAddress, timestamp(sort: Desc)])
-  @@index([fromAddress])
-  @@index([toAddress])
-  @@index([hash])
-  @@index([timestamp(sort: Desc)])
-  @@index([isError])
-}
-
-// ✅ ADDRESS BOOK - NEW
-model AddressBookEntry {
-  id         String    @id @default(cuid())
-  userId     String
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  address    String
-  chain      String    @default("ETHEREUM")
-  name       String
-  notes      String?   @db.Text
-  tags       String[]  @default([])
-  isFavorite Boolean   @default(false)
-  lastUsedAt DateTime?
-  usageCount Int       @default(0)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-
-  walletId String?
-  wallet   Wallet? @relation("WalletAddressBook", fields: [walletId], references: [id], onDelete: SetNull)
-
-  @@unique([userId, address, chain])
-  @@index([userId, name])
-  @@index([userId, tags])
-  @@index([isFavorite])
-}
-
-// ✅ AUDIT LOG - NEW
-model AuditLog {
-  id         String   @id @default(cuid())
-  userId     String?
-  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  action     String
-  entityType String
-  entityId   String
-  changes    Json     @default("{}")
-  metadata   Json     @default("{}")
-  ipAddress  String?
-  userAgent  String?
-  createdAt  DateTime @default(now())
-
-  @@index([userId])
-  @@index([entityType, entityId])
-  @@index([createdAt(sort: Desc)])
-  @@index([action])
-}
-
-// ✅ API KEYS - NEW
-model ApiKey {
-  id          String    @id @default(cuid())
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name        String
-  keyHash     String    @unique
-  lastUsedAt  DateTime?
-  expiresAt   DateTime?
-  isRevoked   Boolean   @default(false)
-  permissions Json      @default("{}")
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  @@index([userId])
-  @@index([keyHash])
-  @@index([isRevoked])
-}
-
-// ✅ SESSIONS - NEW
-model Session {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token     String   @unique
-  expiresAt DateTime
-  userAgent String?
-  ipAddress String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([userId])
-  @@index([token])
-  @@index([isActive])
-}
-
-// ✅ SCANNER FILTER - ENHANCED with all dashboard criteria
-model ScannerFilter {
+model PortfolioSnapshot {
   id            String   @id @default(cuid())
-  name          String
-  userId        String?
-  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  walletId      String
+  wallet        Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  timestamp     DateTime @default(now())
+  totalValueUsd Float    @default(0)
   
-  // Chain selection
-  chain         Chain?
+  tokenValue   Float    @default(0)
+  nftValue     Float    @default(0)
+  stakedValue  Float    @default(0)
+  lpValue      Float    @default(0)
   
-  // Performance filters
-  minPnL        Float?
-  maxPnL        Float?
-  minWinRate    Float?
-  minTrades     Int?
-  minPerformance Float?  // 90-day performance
-  maxDrawdown   Float?
-  minWalletScore Int?
+  topTokens    Json     @default("[]")
+  topNFTs      Json     @default("[]")
+  allocation   Json     @default("{}")
   
-  // Preferences
-  preferredTokens    String[] @default([])
-  preferredProtocols String[] @default([])
+  @@index([walletId, timestamp(sort: Desc)])
+  @@index([walletId])
+  @@index([totalValueUsd])
+}
+
+// TRANSACTIONS AND TRADES
+model Transaction {
+  id            String   @id @default(cuid())
+  walletId      String
+  wallet        Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
   
-  // Metadata
-  isPublic      Boolean  @default(false)
-  isActive      Boolean  @default(true)
-  usageCount    Int      @default(0)
-  lastUsedAt    DateTime?
+  chain         String
+  hash          String   @unique
+  blockNumber   BigInt
+  blockHash     String?
+  timestamp     DateTime
+  fromAddress   String
+  toAddress     String?
+  gasUsed       Float?
+  gasPrice      Float?
+  status        String
+  
+  type          String
+  methodId      String?
+  
+  inputData     String?  @db.Text
+  decodedData   Json?    @default("{}")
+  
+  metadata      Json     @default("{}")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   
-  // Raw filter JSON for backward compatibility and extensibility
-  filter        Json?    @default("{}")
+  tokenTransfers TokenTransfer[]
+  trades         Trade[]
+  
+  @@index([walletId, timestamp(sort: Desc)])
+  @@index([hash])
+  @@index([fromAddress])
+  @@index([toAddress])
+  @@index([timestamp(sort: Desc)])
+  @@index([type])
+  @@index([status])
+  @@index([chain])
+}
+
+model TokenTransfer {
+  id            String   @id @default(cuid())
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  walletId      String
+  wallet        Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  
+  tokenAddress  String
+  tokenSymbol   String?
+  tokenName     String?
+  tokenDecimals Int      @default(18)
+  fromAddress   String
+  toAddress     String
+  amount        Float
+  amountDecimal String?
+  valueUsd      Float?
+  priceUsd      Float?
+  
+  transferType  String
+  
+  timestamp     DateTime @default(now())
+  
+  @@index([transactionId])
+  @@index([walletId])
+  @@index([tokenAddress])
+  @@index([timestamp(sort: Desc)])
+  @@index([fromAddress])
+  @@index([toAddress])
+}
+
+model Trade {
+  id            String   @id @default(cuid())
+  walletId      String
+  wallet        Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  
+  transactionId String?
+  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  chain         String
+  txHash        String   @unique
+  protocol      String
+  protocolType  String
+  
+  side          String
+  tokenIn       String
+  tokenInSymbol String
+  amountIn      Float
+  tokenOut      String
+  tokenOutSymbol String
+  amountOut     Float
+  
+  valueUsd      Float
+  priceUsd      Float?
+  
+  slippage      Float?
+  gasCost       Float?
+  timestamp     DateTime @default(now())
+  blockNumber   BigInt?
+  
+  metadata      Json     @default("{}")
+  createdAt     DateTime @default(now())
+  
+  @@index([walletId, timestamp(sort: Desc)])
+  @@index([txHash])
+  @@index([protocol])
+  @@index([side])
+  @@index([tokenIn])
+  @@index([tokenOut])
+  @@index([timestamp(sort: Desc)])
+  @@index([valueUsd(sort: Desc)])
+}
+
+// SCANNER
+model ScannerFilter {
+  id          String   @id @default(cuid())
+  name        String
+  filter      Json
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  isPublic    Boolean  @default(true)
+  isActive    Boolean  @default(true)
+  usageCount  Int      @default(0)
+  lastUsedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   
   @@unique([name, userId])
   @@index([userId])
   @@index([isPublic])
   @@index([isActive])
-  @@index([chain])
-  @@index([minWalletScore])
-  @@index([usageCount])
 }
 
-// ✅ SCANNED WALLET - Updated
 model ScannedWallet {
-  id             String   @id @default(cuid())
-  walletId       String
-  wallet         Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  scanId         String?
-  score          Int      @default(0)
-  rank           Int      @default(0)
-  timestamp      DateTime @default(now())
-  matchedFilters Json     @default("{}")
-
-  // Enhanced scan data
-  scanDuration Int? // in milliseconds
+  id          String   @id @default(cuid())
+  walletId    String
+  wallet      Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  scanId      String?
+  score       Int      @default(0)
+  rank        Int      @default(0)
+  timestamp   DateTime @default(now())
+  matchedFilters Json   @default("{}")
+  
+  scanDuration Int?
   resultHash   String?
-  isProcessed  Boolean   @default(false)
+  isProcessed  Boolean  @default(false)
   processedAt  DateTime?
-  metadata     Json      @default("{}")
-
+  metadata     Json     @default("{}")
+  
   @@index([walletId, timestamp(sort: Desc)])
   @@index([score(sort: Desc)])
   @@index([scanId])
   @@index([isProcessed])
 }
 
-// ✅ DEX TRADE - Track swap history
+// DEX
 model DexTrade {
-  id       String @id @default(cuid())
-  walletId String
-  wallet   Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
-
-  txHash  String @unique
-  chain   String
-  dexName String // Uniswap, PancakeSwap, 1inch, etc.
-
-  fromToken  String // Token address
-  fromSymbol String
-  fromAmount Float
-  toToken    String // Token address
-  toSymbol   String
-  toAmount   Float
-
-  price    Float? // Price at time of swap
-  slippage Float? // Slippage percentage
-  gasUsed  Float?
-  gasPrice Float?
-
-  status      String // pending, completed, failed
-  timestamp   DateTime  @default(now())
-  completedAt DateTime?
-
-  metadata Json @default("{}")
-
+  id            String   @id @default(cuid())
+  walletId      String
+  wallet        Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  
+  txHash        String   @unique
+  chain         String
+  dexName       String
+  
+  fromToken     String
+  fromSymbol    String
+  fromAmount    Float
+  toToken       String
+  toSymbol      String
+  toAmount      Float
+  
+  price         Float?
+  slippage      Float?
+  gasUsed       Float?
+  gasPrice      Float?
+  
+  status        String
+  timestamp     DateTime @default(now())
+  completedAt   DateTime?
+  
+  metadata      Json     @default("{}")
+  
   @@index([walletId, timestamp(sort: Desc)])
   @@index([txHash])
   @@index([chain, dexName])
   @@index([status])
 }
 
-// ✅ DEX ROUTE - For optimal swap routes
 model DexRoute {
-  id          String   @id @default(cuid())
-  chain       String
-  dexName     String
-  fromToken   String
-  toToken     String
-  fromAmount  Float
-  toAmount    Float
-  priceImpact Float
-  gasEstimate Float
-  route       Json // Array of swap steps
-  isOptimal   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  expiresAt   DateTime
-
+  id            String   @id @default(cuid())
+  chain         String
+  dexName       String
+  fromToken     String
+  toToken       String
+  fromAmount    Float
+  toAmount      Float
+  priceImpact   Float
+  gasEstimate   Float
+  route         Json
+  isOptimal     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  expiresAt     DateTime
+  
   @@index([chain, fromToken, toToken])
   @@index([isOptimal])
 }
 
-// ✅ TOKEN PRICE - For real-time pricing
-model TokenPrice {
-  id             String   @id @default(cuid())
-  chain          String
-  tokenAddress   String
-  symbol         String
-  name           String?
-  priceUsd       Float
-  priceChange24h Float
-  volume24h      Float
-  marketCap      Float?
-  liquidity      Float?
-  timestamp      DateTime @default(now())
-
-  @@unique([chain, tokenAddress, timestamp])
-  @@index([chain, tokenAddress, timestamp(sort: Desc)])
-  @@index([symbol])
-  @@index([priceUsd])
-}
-
-// ✅ TOKEN LIST - For token management
+// TOKENS AND PRICES
 model Token {
-  id         String   @id @default(cuid())
-  chain      String
-  address    String
-  symbol     String
-  name       String
-  decimals   Int      @default(18)
-  logoURI    String?
-  isVerified Boolean  @default(false)
-  isDefault  Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
+  id            String   @id @default(cuid())
+  chain         String
+  address       String
+  symbol        String
+  name          String
+  decimals      Int      @default(18)
+  logoURI       String?
+  isVerified    Boolean  @default(false)
+  isDefault     Boolean  @default(false)
+  coingeckoId   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  prices        TokenPrice[]
+  
   @@unique([chain, address])
   @@index([chain, symbol])
   @@index([isVerified])
   @@index([isDefault])
+  @@index([coingeckoId])
 }
 
-// ✅ USER PREFERENCES - User-specific settings
-model UserPreference {
-  id     String @id @default(cuid())
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // DEX preferences
-  defaultSlippage Float   @default(0.5)
-  preferredDex    String?
-  autoRouting     Boolean @default(true)
-
-  // UI preferences
-  theme         String  @default("dark")
-  language      String  @default("en")
-  notifications Boolean @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([userId])
+model TokenPrice {
+  id            String   @id @default(cuid())
+  tokenId       String
+  token         Token    @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  chain         String
+  priceUsd      Float
+  marketCap     Float?
+  volume24h     Float?
+  liquidity     Float?
+  priceChange1h Float?
+  priceChange24h Float?
+  priceChange7d Float?
+  timestamp     DateTime @default(now())
+  
+  @@unique([tokenId, timestamp])
+  @@index([tokenId, timestamp(sort: Desc)])
+  @@index([chain])
+  @@index([priceUsd])
+  @@index([timestamp(sort: Desc)])
 }
 
-// ============================================
-// ✅ NEW: COPY TRADING MODELS
-// ============================================
+// ADDRESS BOOK
+model AddressBookEntry {
+  id            String          @id @default(cuid())
+  userId        String
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  address       String
+  chain         String          @default("ETHEREUM")
+  name          String
+  notes         String?         @db.Text
+  tags          String[]        @default([])
+  isFavorite    Boolean         @default(false)
+  lastUsedAt    DateTime?
+  usageCount    Int             @default(0)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  
+  walletId      String?
+  wallet        Wallet?         @relation("WalletAddressBook", fields: [walletId], references: [id], onDelete: SetNull)
+  
+  @@unique([userId, address, chain])
+  @@index([userId, name])
+  @@index([userId, tags])
+  @@index([isFavorite])
+}
 
-// ✅ COPY TRADING - Alert configuration
+// COPY TRADING
 model CopyTradeAlert {
   id            String   @id @default(cuid())
   userId        String
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  // Which wallet to monitor
   walletId      String
   wallet        Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
   
-  // What to monitor
   monitorBuy    Boolean  @default(true)
   monitorSell   Boolean  @default(true)
   monitorSwap   Boolean  @default(true)
   monitorSend   Boolean  @default(false)
   monitorReceive Boolean @default(false)
   
-  // Optional filters
-  minValueUsd   Float?   // Minimum transaction value to trigger
-  maxValueUsd   Float?   // Maximum transaction value
-  tokenWhitelist String[] @default([]) // Only these tokens
-  tokenBlacklist String[] @default([]) // Exclude these tokens
+  minValueUsd   Float?
+  maxValueUsd   Float?
+  tokenWhitelist String[] @default([])
+  tokenBlacklist String[] @default([])
   
-  // Webhook configuration
   webhookUrl    String
-  webhookSecret String?   // For HMAC signing
+  webhookSecret String?
   isActive      Boolean  @default(true)
   
-  // Rate limiting
   maxAlertsPerDay Int    @default(50)
   alertsToday    Int     @default(0)
   lastAlertAt    DateTime?
-  alertCooldown  Int     @default(60) // Seconds between alerts
+  alertCooldown  Int     @default(60)
   
-  // Stats
   totalAlerts    Int     @default(0)
   lastError      String? @db.Text
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   
-  // Relations
   logs          CopyTradeAlertLog[]
-  webhookQueue  WebhookQueue[]
   
   @@unique([userId, walletId])
   @@index([userId])
@@ -535,15 +666,13 @@ model CopyTradeAlert {
   @@index([isActive])
 }
 
-// ✅ COPY TRADING - Alert history
 model CopyTradeAlertLog {
   id            String   @id @default(cuid())
   alertId       String
   alert         CopyTradeAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
   
-  // Transaction details
   txHash        String
-  eventType     String   // BUY, SELL, SWAP, SEND, RECEIVE
+  eventType     String
   tokenAddress  String
   tokenSymbol   String
   tokenName     String?
@@ -552,13 +681,11 @@ model CopyTradeAlertLog {
   price         Float?
   portfolioPercentage Float?
   
-  // Additional context
   fromAddress   String?
   toAddress     String?
   chain         String
   
-  // Webhook delivery
-  webhookStatus String   // PENDING, SUCCESS, FAILED
+  webhookStatus String
   webhookResponse String? @db.Text
   webhookError  String?  @db.Text
   retryCount    Int      @default(0)
@@ -573,24 +700,22 @@ model CopyTradeAlertLog {
   @@index([webhookStatus])
 }
 
-// ✅ COPY TRADING - Webhook delivery queue
-model WebhookQueue {
-  id            String   @id @default(cuid())
-  alertId       String
-  alert         CopyTradeAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+// AUDIT LOGS
+model AuditLog {
+  id            String          @id @default(cuid())
+  userId        String?
+  user          User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action        String
+  entityType    String
+  entityId      String
+  changes       Json            @default("{}")
+  metadata      Json            @default("{}")
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime        @default(now())
   
-  payload       Json
-  url           String
-  secret        String?
-  retryCount    Int      @default(0)
-  maxRetries    Int      @default(3)
-  nextRetryAt   DateTime
-  status        String   // PENDING, PROCESSING, SUCCESS, FAILED
-  error         String?  @db.Text
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
-  @@index([status])
-  @@index([nextRetryAt])
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt(sort: Desc)])
+  @@index([action])
 }

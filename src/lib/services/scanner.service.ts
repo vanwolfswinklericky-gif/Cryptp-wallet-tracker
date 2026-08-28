@@ -11,25 +11,12 @@ export interface ScannerFilters {
   minPerformance?: number;
   maxDrawdown?: number;
   minWalletScore?: number;
+  minSmartMoneyScore?: number;
   preferredTokens?: string[];
   preferredProtocols?: string[];
-}
-
-export interface ScannerResult {
-  address: string;
-  chain: string;
-  pnl: number;
-  roi: number;
-  winRate: number;
-  tradeCount: number;
-  averageTrade: number;
-  volume: number;
-  drawdown: number;
-  walletScore: number;
-  chains: string[];
-  preferredTokens: string[];
-  preferredProtocols: string[];
-  matchedFilters: string[];
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
 }
 
 export class ScannerService {
@@ -43,11 +30,28 @@ export class ScannerService {
   }
 
   /**
-   * ✅ Scan wallets with advanced filters
+   * ✅ Advanced wallet scanning with all criteria
    */
-  async scanWallets(filters: ScannerFilters): Promise<ScannerResult[]> {
+  async scanWallets(filters: ScannerFilters) {
     try {
-      // Build where clause for Prisma
+      const {
+        chain,
+        minPnL,
+        maxPnL,
+        minWinRate,
+        minTrades,
+        minPerformance,
+        maxDrawdown,
+        minWalletScore,
+        minSmartMoneyScore,
+        preferredTokens,
+        preferredProtocols,
+        limit = 50,
+        sortBy = 'walletScore',
+        sortOrder = 'desc',
+      } = filters;
+
+      // Build where clause
       const where: any = {
         isDeleted: false,
         metrics: {
@@ -55,41 +59,23 @@ export class ScannerService {
         },
       };
 
-      // Chain filter
-      if (filters.chain) {
-        where.chain = filters.chain.toUpperCase();
+      if (chain) {
+        where.chain = chain.toUpperCase();
       }
 
       // Build metric filters
       const metricFilters: any = {};
+      if (minPnL !== undefined) metricFilters.totalPnl = { gte: minPnL };
+      if (maxPnL !== undefined) metricFilters.totalPnl = { ...metricFilters.totalPnl, lte: maxPnL };
+      if (minWinRate !== undefined) metricFilters.winRate = { gte: minWinRate };
+      if (minTrades !== undefined) metricFilters.tradeCount = { gte: minTrades };
+      if (minPerformance !== undefined) metricFilters.performance30d = { gte: minPerformance };
+      if (maxDrawdown !== undefined) metricFilters.maxDrawdown = { lte: maxDrawdown };
+      if (minWalletScore !== undefined) metricFilters.walletScore = { gte: minWalletScore };
+      if (minSmartMoneyScore !== undefined) metricFilters.smartMoneyScore = { gte: minSmartMoneyScore };
 
-      if (filters.minPnL !== undefined) {
-        metricFilters.totalPnl = { gte: filters.minPnL };
-      }
-      if (filters.maxPnL !== undefined) {
-        metricFilters.totalPnl = { ...metricFilters.totalPnl, lte: filters.maxPnL };
-      }
-      if (filters.minWinRate !== undefined) {
-        metricFilters.winRate = { gte: filters.minWinRate };
-      }
-      if (filters.minTrades !== undefined) {
-        metricFilters.tradeCount = { gte: filters.minTrades };
-      }
-      if (filters.minPerformance !== undefined) {
-        metricFilters.performance90d = { gte: filters.minPerformance };
-      }
-      if (filters.maxDrawdown !== undefined) {
-        metricFilters.maxDrawdown = { lte: filters.maxDrawdown };
-      }
-      if (filters.minWalletScore !== undefined) {
-        metricFilters.walletScore = { gte: filters.minWalletScore };
-      }
-
-      // Apply metric filters
       if (Object.keys(metricFilters).length > 0) {
-        where.metrics = {
-          some: metricFilters,
-        };
+        where.metrics = { some: metricFilters };
       }
 
       // Fetch wallets with latest metrics
@@ -100,132 +86,332 @@ export class ScannerService {
             orderBy: { timestamp: 'desc' },
             take: 1,
           },
-          transactions: {
+          trades: {
             orderBy: { timestamp: 'desc' },
             take: 100,
           },
+          walletHistory: {
+            orderBy: { month: 'desc' },
+            take: 6,
+          },
         },
-        take: 200, // Fetch more to filter further
+        take: limit * 2, // Fetch more to filter further
       });
 
-      // Transform and filter results
-      const results: ScannerResult[] = [];
+      // Transform and enrich results
+      const results = wallets
+        .map((wallet) => {
+          const metric = wallet.metrics[0];
+          if (!metric) return null;
 
-      for (const wallet of wallets) {
-        const metric = wallet.metrics[0];
-        if (!metric) continue;
-
-        // Calculate additional metrics
-        const tradeCount = metric.tradeCount || 0;
-        const totalPnL = metric.totalPnl || 0;
-        const totalRoi = metric.totalRoi || 0;
-        const winRate = metric.winRate || 0;
-
-        // Skip if doesn't meet criteria
-        if (filters.minPnL && totalPnL < filters.minPnL) continue;
-        if (filters.maxPnL && totalPnL > filters.maxPnL) continue;
-        if (filters.minWinRate && winRate < filters.minWinRate) continue;
-        if (filters.minTrades && tradeCount < filters.minTrades) continue;
-        if (filters.minPerformance && (metric.performance90d || 0) < filters.minPerformance) continue;
-        if (filters.maxDrawdown && (metric.maxDrawdown || 0) > filters.maxDrawdown) continue;
-        if (filters.minWalletScore && (metric.walletScore || 0) < filters.minWalletScore) continue;
-
-        // Check preferred tokens
-        const matchedFilters: string[] = [];
-        const preferredTokens = metric.preferredTokens || [];
-        const preferredProtocols = metric.preferredProtocols || [];
-
-        if (filters.preferredTokens?.length) {
-          const matches = preferredTokens.filter(t => 
-            filters.preferredTokens!.includes(t)
-          );
-          if (matches.length > 0) {
-            matchedFilters.push(`Tokens: ${matches.join(', ')}`);
+          const matchedFilters: string[] = [];
+          
+          // Check each filter
+          if (minPnL && metric.totalPnl >= minPnL) {
+            matchedFilters.push(`PnL > $${minPnL.toLocaleString()}`);
           }
-        }
-
-        if (filters.preferredProtocols?.length) {
-          const matches = preferredProtocols.filter(p => 
-            filters.preferredProtocols!.includes(p)
-          );
-          if (matches.length > 0) {
-            matchedFilters.push(`Protocols: ${matches.join(', ')}`);
+          if (minWinRate && metric.winRate >= minWinRate) {
+            matchedFilters.push(`Win Rate > ${minWinRate}%`);
           }
-        }
+          if (minTrades && metric.tradeCount >= minTrades) {
+            matchedFilters.push(`${minTrades}+ Trades`);
+          }
+          if (minPerformance && metric.performance30d >= minPerformance) {
+            matchedFilters.push(`30d Performance > ${minPerformance}%`);
+          }
+          if (maxDrawdown && metric.maxDrawdown <= maxDrawdown) {
+            matchedFilters.push(`Drawdown < ${maxDrawdown}%`);
+          }
+          if (minWalletScore && metric.walletScore >= minWalletScore) {
+            matchedFilters.push(`Score > ${minWalletScore}`);
+          }
 
-        results.push({
-          address: wallet.address,
-          chain: wallet.chain,
-          pnl: totalPnL,
-          roi: totalRoi,
-          winRate: winRate,
-          tradeCount: tradeCount,
-          averageTrade: metric.averageTrade || 0,
-          volume: metric.totalVolume || 0,
-          drawdown: metric.maxDrawdown || 0,
-          walletScore: metric.walletScore || 0,
-          chains: [wallet.chain],
-          preferredTokens: preferredTokens.slice(0, 5),
-          preferredProtocols: preferredProtocols.slice(0, 5),
-          matchedFilters: matchedFilters,
-        });
-      }
+          return {
+            address: wallet.address,
+            chain: wallet.chain,
+            label: wallet.label,
+            pnl: metric.totalPnl || 0,
+            roi: metric.totalRoi || 0,
+            winRate: metric.winRate || 0,
+            tradeCount: metric.tradeCount || 0,
+            averageTrade: metric.averageTrade || 0,
+            volume: metric.totalVolume || 0,
+            drawdown: metric.maxDrawdown || 0,
+            walletScore: metric.walletScore || 0,
+            smartMoneyScore: metric.smartMoneyScore || 0,
+            consistencyScore: metric.consistencyScore || 0,
+            performance30d: metric.performance30d || 0,
+            performance90d: metric.performance90d || 0,
+            preferredTokens: metric.preferredTokens || [],
+            preferredProtocols: metric.preferredProtocols || [],
+            matchedFilters,
+            monthlyPerformance: wallet.walletHistory.map(h => ({
+              month: h.month,
+              pnl: h.totalPnL,
+              roi: h.totalRoi,
+              winRate: h.winRate,
+              score: h.walletScore,
+            })),
+            tags: [], // Add tags from wallet.tags
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => {
+          const aVal = a[sortBy as keyof typeof a] || 0;
+          const bVal = b[sortBy as keyof typeof b] || 0;
+          if (typeof aVal === 'number' && typeof bVal === 'number') {
+            return sortOrder === 'desc' ? bVal - aVal : aVal - bVal;
+          }
+          return 0;
+        })
+        .slice(0, limit);
 
-      // Sort by wallet score
-      results.sort((a, b) => b.walletScore - a.walletScore);
-
-      logger.info(`Scanner found ${results.length} wallets matching criteria`);
-
-      return results;
+      return {
+        wallets: results,
+        count: results.length,
+        filters,
+      };
     } catch (error) {
       logger.error('Scanner error:', error);
-      return [];
+      throw error;
     }
   }
 
   /**
-   * ✅ Save scanner criteria for reuse
+   * ✅ Get trending wallets
    */
-  async saveCriteria(
-    userId: string,
-    name: string,
-    filters: ScannerFilters,
-    isPublic: boolean = false
-  ) {
-    return prisma.scannerCriteria.create({
-      data: {
-        name,
-        chain: filters.chain as any,
-        minPnL: filters.minPnL,
-        maxPnL: filters.maxPnL,
-        minWinRate: filters.minWinRate,
-        minTrades: filters.minTrades,
-        minPerformance: filters.minPerformance,
-        maxDrawdown: filters.maxDrawdown,
-        minWalletScore: filters.minWalletScore,
-        preferredTokens: filters.preferredTokens || [],
-        preferredProtocols: filters.preferredProtocols || [],
-        userId,
-        isPublic,
+  async getTrendingWallets(chain?: string, limit: number = 20) {
+    const where: any = {
+      isDeleted: false,
+      metrics: {
+        some: {
+          performance7d: { gt: 0 },
+        },
       },
+    };
+
+    if (chain) {
+      where.chain = chain.toUpperCase();
+    }
+
+    const wallets = await prisma.wallet.findMany({
+      where,
+      include: {
+        metrics: {
+          orderBy: { timestamp: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: {
+        metrics: {
+          performance7d: 'desc',
+        },
+      },
+      take: limit,
+    });
+
+    return wallets.map((wallet) => {
+      const metric = wallet.metrics[0];
+      return {
+        address: wallet.address,
+        chain: wallet.chain,
+        label: wallet.label,
+        performance7d: metric?.performance7d || 0,
+        performance30d: metric?.performance30d || 0,
+        totalPnL: metric?.totalPnl || 0,
+        walletScore: metric?.walletScore || 0,
+      };
     });
   }
 
   /**
-   * ✅ Get saved scanner criteria
+   * ✅ Get top performers
    */
-  async getSavedCriteria(userId: string) {
-    return prisma.scannerCriteria.findMany({
-      where: {
-        OR: [
-          { userId },
-          { isPublic: true },
-        ],
-        isActive: true,
+  async getTopPerformers(chain?: string, timeframe: string = '30d', limit: number = 20) {
+    const fieldMap: Record<string, string> = {
+      '24h': 'performance24h',
+      '7d': 'performance7d',
+      '30d': 'performance30d',
+      '90d': 'performance90d',
+    };
+
+    const performanceField = fieldMap[timeframe] || 'performance30d';
+
+    const where: any = {
+      isDeleted: false,
+      metrics: {
+        some: {
+          tradeCount: { gt: 10 },
+        },
       },
-      orderBy: { usageCount: 'desc' },
+    };
+
+    if (chain) {
+      where.chain = chain.toUpperCase();
+    }
+
+    const wallets = await prisma.wallet.findMany({
+      where,
+      include: {
+        metrics: {
+          orderBy: { timestamp: 'desc' },
+          take: 1,
+        },
+      },
+      take: limit,
+    });
+
+    return wallets
+      .map((wallet) => {
+        const metric = wallet.metrics[0];
+        if (!metric) return null;
+        const performance = (metric as any)[performanceField] || 0;
+        return {
+          address: wallet.address,
+          chain: wallet.chain,
+          performance,
+          walletScore: metric.walletScore || 0,
+          roi: metric.totalRoi || 0,
+          winRate: metric.winRate || 0,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => (b?.performance || 0) - (a?.performance || 0));
+  }
+
+  /**
+   * ✅ Get smart money wallets
+   */
+  async getSmartMoneyWallets(chain?: string, limit: number = 20) {
+    const where: any = {
+      isDeleted: false,
+      metrics: {
+        some: {
+          smartMoneyScore: { gte: 80 },
+          winRate: { gte: 55 },
+          maxDrawdown: { lte: 20 },
+          tradeCount: { gte: 20 },
+        },
+      },
+    };
+
+    if (chain) {
+      where.chain = chain.toUpperCase();
+    }
+
+    const wallets = await prisma.wallet.findMany({
+      where,
+      include: {
+        metrics: {
+          orderBy: { timestamp: 'desc' },
+          take: 1,
+        },
+        walletHistory: {
+          orderBy: { month: 'desc' },
+          take: 6,
+        },
+      },
+      take: limit,
+    });
+
+    return wallets.map((wallet) => {
+      const metric = wallet.metrics[0];
+      return {
+        address: wallet.address,
+        chain: wallet.chain,
+        label: wallet.label,
+        walletScore: metric?.walletScore || 0,
+        smartMoneyScore: metric?.smartMoneyScore || 0,
+        winRate: metric?.winRate || 0,
+        drawdown: metric?.maxDrawdown || 0,
+        consistency: metric?.consistencyScore || 0,
+        monthlyPerformance: wallet.walletHistory.map(h => ({
+          month: h.month,
+          score: h.walletScore,
+          pnl: h.totalPnL,
+        })),
+      };
     });
   }
-}
 
-export const scannerService = ScannerService.getInstance();
+  /**
+   * ✅ Get whales (high volume traders)
+   */
+  async getWhales(chain?: string, minVolume: number = 100000, limit: number = 20) {
+    const where: any = {
+      isDeleted: false,
+      metrics: {
+        some: {
+          totalVolume: { gte: minVolume },
+          tradeCount: { gt: 50 },
+        },
+      },
+    };
+
+    if (chain) {
+      where.chain = chain.toUpperCase();
+    }
+
+    const wallets = await prisma.wallet.findMany({
+      where,
+      include: {
+        metrics: {
+          orderBy: { timestamp: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: {
+        metrics: {
+          totalVolume: 'desc',
+        },
+      },
+      take: limit,
+    });
+
+    return wallets.map((wallet) => {
+      const metric = wallet.metrics[0];
+      return {
+        address: wallet.address,
+        chain: wallet.chain,
+        volume: metric?.totalVolume || 0,
+        pnl: metric?.totalPnl || 0,
+        tradeCount: metric?.tradeCount || 0,
+        walletScore: metric?.walletScore || 0,
+      };
+    });
+  }
+
+  /**
+   * ✅ Get early buyers of a token
+   */
+  async getEarlyBuyers(tokenAddress: string, chain: string, limit: number = 20) {
+    const trades = await prisma.trade.findMany({
+      where: {
+        chain: chain.toUpperCase(),
+        tokenIn: tokenAddress,
+        side: 'BUY',
+      },
+      orderBy: { timestamp: 'asc' },
+      include: {
+        wallet: {
+          include: {
+            metrics: {
+              orderBy: { timestamp: 'desc' },
+              take: 1,
+            },
+          },
+        },
+      },
+      take: limit,
+    });
+
+    return trades.map((trade) => ({
+      address: trade.wallet.address,
+      chain: trade.wallet.chain,
+      buyAmount: trade.amountIn,
+      buyPrice: trade.priceUsd || 0,
+      buyDate: trade.timestamp,
+      walletScore: trade.wallet.metrics[0]?.walletScore || 0,
+    }));
+  }
+}
