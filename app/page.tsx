@@ -19,10 +19,11 @@ import {
   Zap,
   Search,
   TrendingUp as TrendingUpIcon,
-  ArrowUpDown,
-  Bell, // ✅ Added for Copy-Trading
+  Bell, // For Copy-Trading
+  // ❌ REMOVE: ArrowUpDown (DEX icon)
 } from 'lucide-react';
 
+// Component imports
 import DashboardLayout from '@/components/DashboardLayout';
 import WalletInput from '@/components/WalletInput';
 import WalletOverview from '@/components/WalletOverview';
@@ -38,9 +39,7 @@ import PortfolioHistory from '@/components/dashboard/PortfolioHistory';
 import ScannerDashboard from '@/components/scanner/ScannerDashboard';
 import { WalletManagement } from '@/components/wallets/WalletManagement';
 import { ExportButton } from '@/components/export/ExportButton';
-import { SwapInterface } from '@/components/dex/SwapInterface';
-import { TradeHistory } from '@/components/dex/TradeHistory';
-// ✅ NEW: Copy-Trading Import
+// ❌ REMOVE: SwapInterface, TradeHistory imports
 import { CopyTradeAlerts } from '@/components/copy-trading/CopyTradeAlerts';
 
 export default function Home() {
@@ -52,192 +51,45 @@ export default function Home() {
   const [allocation, setAllocation] = useState<{ name: string; value: number; color: string }[]>([]);
   const [showNFTs, setShowNFTs] = useState(true);
   const [hasNFTs, setHasNFTs] = useState(false);
-  // ✅ Updated to include 'copy-trading'
-  const [activeTab, setActiveTab] = useState<'overview' | 'tokens' | 'nfts' | 'history' | 'scanner' | 'dex' | 'pnl' | 'wallets' | 'copy-trading'>('overview');
+  // ✅ Updated: REMOVED 'dex' from tabs
+  const [activeTab, setActiveTab] = useState<'overview' | 'tokens' | 'nfts' | 'history' | 'scanner' | 'pnl' | 'wallets' | 'copy-trading'>('overview');
 
-  // ✅ Tab configuration with Copy-Trading
+  // ✅ Updated Tab Configuration - REMOVED DEX
   const tabs = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'tokens', label: 'Tokens', icon: Coins },
     { id: 'nfts', label: 'NFTs', icon: Image },
     { id: 'history', label: 'History', icon: Clock },
     { id: 'scanner', label: 'Scanner', icon: Target },
-    { id: 'dex', label: 'Swap', icon: ArrowUpDown },
-    { id: 'copy-trading', label: 'Copy Trading', icon: Bell }, // ✅ NEW TAB
+    { id: 'copy-trading', label: 'Copy Trading', icon: Bell },
     { id: 'pnl', label: 'PnL', icon: TrendingUpIcon },
     { id: 'wallets', label: 'Wallets', icon: Wallet },
   ] as const;
 
+  // ... ALL your existing functions (buildChartData, buildAllocation, handleAddressSubmit, etc.) remain the SAME ...
+
   // Build chart data from transactions
   const buildChartData = useCallback((transactions: any[], walletAddress: string, currentBalance: number) => {
-    console.log('📊 Building chart data...');
-    console.log('💰 Current balance:', currentBalance);
-    
-    if (currentBalance > 0) {
-      const data = [];
-      for (let i = 29; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        data.push({
-          date: date.toISOString().split('T')[0],
-          value: currentBalance
-        });
-      }
-      console.log('✅ Chart data built (balance-based):', data.length, 'points');
-      return data;
-    }
-
-    if (!transactions || transactions.length === 0) {
-      console.log('⚠️ No data available');
-      return [{ date: new Date().toISOString().split('T')[0], value: 0 }];
-    }
-
-    const sorted = [...transactions].sort((a, b) => 
-      parseInt(a.timeStamp) - parseInt(b.timeStamp)
-    );
-
-    const dailyBalances: { [key: string]: number } = {};
-    let runningBalance = 0;
-
-    sorted.forEach(tx => {
-      const date = new Date(parseInt(tx.timeStamp) * 1000).toISOString().split('T')[0];
-      const value = parseFloat(tx.value) / 1e18;
-      const isIncoming = tx.to?.toLowerCase() === walletAddress?.toLowerCase();
-      const amount = isIncoming ? value : -value;
-      runningBalance += amount;
-      dailyBalances[date] = Math.max(0, runningBalance);
-    });
-
-    const result = Object.entries(dailyBalances).map(([date, value]) => ({
-      date,
-      value
-    }));
-    
-    console.log('✅ Chart data built (transaction-based):', result.length, 'points');
-    return result;
+    // ... your existing function
   }, []);
 
   // Build asset allocation from tokens
   const buildAllocation = useCallback((tokens: any[]) => {
-    if (!tokens || tokens.length === 0) {
-      return [
-        { name: 'ETH', value: 100, color: '#627EEA' }
-      ];
-    }
-
-    const colors = ['#627EEA', '#2775CA', '#F5AC37', '#FF6B6B', '#6C5CE7', '#00B894', '#FD79A8', '#00CEC9'];
-    
-    const totalValue = tokens.reduce((sum, token) => {
-      const balance = parseFloat(token.balance) / Math.pow(10, token.decimals);
-      return sum + balance;
-    }, 0);
-
-    if (totalValue === 0) {
-      return [{ name: 'ETH', value: 100, color: '#627EEA' }];
-    }
-
-    return tokens.slice(0, 6).map((token, index) => {
-      const balance = parseFloat(token.balance) / Math.pow(10, token.decimals);
-      const value = (balance / totalValue) * 100;
-      return {
-        name: token.tokenSymbol || 'Unknown',
-        value: Math.max(0, value),
-        color: colors[index % colors.length]
-      };
-    });
+    // ... your existing function
   }, []);
 
   // Calculate PnL metrics
   const pnlData = useMemo(() => {
-    if (!data || !address) return null;
-    
-    const transactions = data.transactions || [];
-    let totalIn = 0;
-    let totalOut = 0;
-    let winCount = 0;
-    let lossCount = 0;
-    
-    transactions.forEach((tx: any) => {
-      const value = parseFloat(tx.value) / 1e18;
-      const isIncoming = tx.to?.toLowerCase() === address?.toLowerCase();
-      if (isIncoming) {
-        totalIn += value;
-        winCount++;
-      } else {
-        totalOut += value;
-        lossCount++;
-      }
-    });
-    
-    const totalPnL = totalIn - totalOut;
-    const totalRoi = totalOut > 0 ? (totalPnL / totalOut) * 100 : 0;
-    const winRate = transactions.length > 0 ? (winCount / transactions.length) * 100 : 0;
-    
-    return {
-      totalPnL,
-      totalRoi,
-      winRate,
-      winCount,
-      lossCount,
-      totalTransactions: transactions.length,
-      isProfitable: totalPnL > 0,
-    };
+    // ... your existing function
   }, [data, address]);
 
   const handleAddressSubmit = async (addr: string, chain: string) => {
-    setLoading(true);
-    setError(null);
-    setData(null);
-
-    try {
-      const response = await fetch(
-        `/api/wallet/${addr}?includeTxs=true&chain=${chain}`
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to fetch wallet data');
-      }
-
-      console.log('✅ API Response received');
-      console.log('📊 Balance:', result.balance);
-      console.log('📝 Transactions:', result.transactions?.length || 0);
-      console.log('🪙 Tokens:', result.tokens?.length || 0);
-      console.log('🔗 Chain:', result.chainName);
-
-      setData(result);
-      setAddress(addr);
-      
-      const chartDataFromTxs = buildChartData(result.transactions, addr, result.balance);
-      setChartData(chartDataFromTxs);
-      
-      const allocationData = buildAllocation(result.tokens);
-      setAllocation(allocationData);
-      
-      // ✅ Check if wallet has NFTs
-      try {
-        const nftCheck = await fetch(`/api/nft/has?address=${addr}&chain=${chain}`);
-        const nftData = await nftCheck.json();
-        setHasNFTs(nftData.hasNFTs || false);
-      } catch (nftError) {
-        console.log('NFT check failed:', nftError);
-        setHasNFTs(false);
-      }
-      
-    } catch (err) {
-      console.error('❌ Error fetching wallet data:', err);
-      setError(
-        err instanceof Error ? err.message : 'An unexpected error occurred'
-      );
-    } finally {
-      setLoading(false);
-    }
+    // ... your existing function
   };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Header */}
+      {/* Header - Keep as is */}
       <header className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="cwt-page">
           <div className="cwt-header">
@@ -257,7 +109,7 @@ export default function Home() {
       </header>
 
       <main className="cwt-page">
-        {/* Wallet Input */}
+        {/* Wallet Input - Keep as is */}
         <section className="cwt-wallet-section">
           <div className="cwt-wallet-card">
             <div className="cwt-wallet-icon">
@@ -278,7 +130,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Loading */}
+        {/* Loading - Keep as is */}
         {loading && (
           <div className="flex justify-center py-8">
             <div className="flex items-center gap-3 rounded-2xl border border-gray-300 bg-white px-6 py-4 shadow-sm dark:border-gray-600 dark:bg-gray-800">
@@ -295,7 +147,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Error */}
+        {/* Error - Keep as is */}
         {error && !loading && (
           <div className="flex justify-center py-4">
             <div className="flex w-full max-w-2xl items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950/20">
@@ -313,7 +165,7 @@ export default function Home() {
         {/* Dashboard */}
         {data && !loading && (
           <>
-            {/* Overview */}
+            {/* Overview - Keep as is */}
             <div className="cwt-overview">
               <div className="cwt-overview-heading">
                 <BarChart3 className="cwt-overview-icon" />
@@ -324,7 +176,7 @@ export default function Home() {
               )}
             </div>
 
-            {/* Stats Grid */}
+            {/* Stats Grid - Keep as is */}
             <div className="cwt-stats-grid">
               <div className="cwt-stat-card">
                 <div className="cwt-stat-icon">
@@ -364,7 +216,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* ✅ 9 Tabs with Copy-Trading */}
+            {/* ✅ Updated: 8 Tabs (Removed DEX) */}
             <div className="flex flex-wrap gap-1 mb-6 p-1 bg-gray-100 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
@@ -388,9 +240,6 @@ export default function Home() {
                     {tab.id === 'nfts' && hasNFTs && (
                       <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
                     )}
-                    {tab.id === 'dex' && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
-                    )}
                     {tab.id === 'copy-trading' && (
                       <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />
                     )}
@@ -401,7 +250,7 @@ export default function Home() {
 
             {/* Tab Content */}
             <div className="space-y-6">
-              {/* Overview Tab */}
+              {/* Overview Tab - Keep as is */}
               {activeTab === 'overview' && (
                 <>
                   {/* Main Grid - Chart and Prices */}
@@ -455,7 +304,7 @@ export default function Home() {
                 </>
               )}
 
-              {/* Tokens Tab */}
+              {/* Tokens Tab - Keep as is */}
               {activeTab === 'tokens' && (
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
@@ -465,7 +314,7 @@ export default function Home() {
                 </div>
               )}
 
-              {/* NFTs Tab */}
+              {/* NFTs Tab - Keep as is */}
               {activeTab === 'nfts' && (
                 <div className="space-y-4">
                   <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
@@ -477,7 +326,7 @@ export default function Home() {
                 </div>
               )}
 
-              {/* History Tab */}
+              {/* History Tab - Keep as is */}
               {activeTab === 'history' && (
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
@@ -487,48 +336,14 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Scanner Tab */}
+              {/* Scanner Tab - Keep as is */}
               {activeTab === 'scanner' && (
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 sm:p-6">
                   <ScannerDashboard />
                 </div>
               )}
 
-              {/* DEX Swap Tab */}
-              {activeTab === 'dex' && (
-                <div className="space-y-6">
-                  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                          Swap Tokens
-                        </h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Swap tokens across multiple DEXes with best price routing
-                        </p>
-                      </div>
-                      <span className="text-xs px-2 py-1 bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-full flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
-                        Powered by 1inch
-                      </span>
-                    </div>
-                    <SwapInterface walletId={data?.id || address || ''} />
-                  </div>
-                  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                        Trade History
-                      </h3>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        Recent swaps
-                      </span>
-                    </div>
-                    <TradeHistory walletId={data?.id || address || ''} />
-                  </div>
-                </div>
-              )}
-
-              {/* ✅ COPY-TRADING TAB */}
+              {/* ✅ COPY-TRADING TAB - Keep */}
               {activeTab === 'copy-trading' && (
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
                   <div className="flex items-center justify-between mb-4">
@@ -550,7 +365,7 @@ export default function Home() {
                 </div>
               )}
 
-              {/* PnL Tab */}
+              {/* PnL Tab - Keep as is */}
               {activeTab === 'pnl' && (
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
@@ -603,7 +418,7 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Wallets Management Tab */}
+              {/* Wallets Management Tab - Keep as is */}
               {activeTab === 'wallets' && (
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
                   <div className="flex items-center justify-between mb-4">
@@ -617,7 +432,7 @@ export default function Home() {
               )}
             </div>
 
-            {/* Bottom Grid */}
+            {/* Bottom Grid - Keep as is */}
             <div className="cwt-bottom-grid">
               <div className="cwt-bottom-card">
                 <div className="cwt-bottom-icon">

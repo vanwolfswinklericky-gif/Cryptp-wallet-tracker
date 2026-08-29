@@ -1,4 +1,4 @@
- // prisma/schema.prisma
+// prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
 }
@@ -23,23 +23,6 @@ enum Chain {
   AVALANCHE
   BASE
   SOLANA
-}
-
-enum DexStatus {
-  PENDING
-  COMPLETED
-  FAILED
-  CANCELLED
-}
-
-enum DexName {
-  UNISWAP
-  UNISWAP_V3
-  PANCAKESWAP
-  QUICKSWAP
-  SUSHISWAP
-  ONEINCH
-  PARASWAP
 }
 
 enum DataProvider {
@@ -170,7 +153,7 @@ model Wallet {
   portfolioSnapshots PortfolioSnapshot[]
   scans       ScannedWallet[]
   addressBook AddressBookEntry[] @relation("WalletAddressBook")
-  dexTrades   DexTrade[]
+  // ❌ REMOVED: dexTrades DexTrade[]
   copyTradeAlerts CopyTradeAlert[]
   subscriptions WalletSubscription[]
   savedByUsers SavedWallet[]
@@ -501,59 +484,6 @@ model ScannedWallet {
   @@index([isProcessed])
 }
 
-// DEX
-model DexTrade {
-  id            String   @id @default(cuid())
-  walletId      String
-  wallet        Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  
-  txHash        String   @unique
-  chain         String
-  dexName       String
-  
-  fromToken     String
-  fromSymbol    String
-  fromAmount    Float
-  toToken       String
-  toSymbol      String
-  toAmount      Float
-  
-  price         Float?
-  slippage      Float?
-  gasUsed       Float?
-  gasPrice      Float?
-  
-  status        String
-  timestamp     DateTime @default(now())
-  completedAt   DateTime?
-  
-  metadata      Json     @default("{}")
-  
-  @@index([walletId, timestamp(sort: Desc)])
-  @@index([txHash])
-  @@index([chain, dexName])
-  @@index([status])
-}
-
-model DexRoute {
-  id            String   @id @default(cuid())
-  chain         String
-  dexName       String
-  fromToken     String
-  toToken       String
-  fromAmount    Float
-  toAmount      Float
-  priceImpact   Float
-  gasEstimate   Float
-  route         Json
-  isOptimal     Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  expiresAt     DateTime
-  
-  @@index([chain, fromToken, toToken])
-  @@index([isOptimal])
-}
-
 // TOKENS AND PRICES
 model Token {
   id            String   @id @default(cuid())
@@ -655,8 +585,8 @@ model CopyTradeAlert {
   
   totalAlerts    Int     @default(0)
   lastError      String? @db.Text
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
   
   logs          CopyTradeAlertLog[]
   
