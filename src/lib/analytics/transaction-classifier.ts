@@ -1,4 +1,8 @@
 // src/lib/analytics/transaction-classifier.ts
+import { prisma } from '@/lib/db/prisma';
+import { logger } from '@/lib/logger';
+import { EventNormalizer, NormalizedEvent } from '@/lib/normalization/event-normalizer';
+
 export enum TransactionType {
   BUY = 'BUY',
   SELL = 'SELL',
@@ -29,44 +33,51 @@ export interface ClassificationResult {
   valueUsd?: number;
   protocol?: string;
   side?: 'BUY' | 'SELL';
-  metadata: Record<string, any>;
+  events: NormalizedEvent[];
+  metadata: {
+    txHash: string;
+    blockNumber: number;
+    timestamp: Date;
+    [key: string]: any;
+  };
 }
 
 export class TransactionClassifier {
   private static instance: TransactionClassifier;
+  private eventNormalizer: EventNormalizer;
+
+  // Known DEX addresses
   private dexAddresses: Set<string>;
   private exchangeAddresses: Set<string>;
   private bridgeAddresses: Set<string>;
   private stakingAddresses: Set<string>;
 
   private constructor() {
-    // Known DEX addresses
+    this.eventNormalizer = EventNormalizer.getInstance();
+
+    // Initialize known addresses
     this.dexAddresses = new Set([
-      '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D', // Uniswap V2
-      '0xE592427A0AEce92De3Edee1F18E0157C05861564', // Uniswap V3
-      '0x10ED43C718714eb63d5aA57B78B54704E256024E', // PancakeSwap
-      '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff', // QuickSwap
-      '0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F', // SushiSwap
+      '0x7a250d5630b4cf539739df2c5dacb4c659f2488d', // Uniswap V2
+      '0xe592427a0aece92de3edee1f18e0157c05861564', // Uniswap V3
+      '0x10ed43c718714eb63d5aa57b78b54704e256024e', // PancakeSwap
+      '0xa5e0829caced8ffdd4de3c43696c57f7d7a678ff', // QuickSwap
+      '0xd9e1ce17f2641f24ae83637ab66a2cca9c378b9f', // SushiSwap
+      '0x1f98431c8ad98523631ae4a59f267346ea31f984', // Uniswap V3 Factory
     ]);
 
-    // Known exchange addresses
     this.exchangeAddresses = new Set([
-      '0x3f5CE5FBFe3E9af3971dD833D26bA9b5C936f0bE', // Binance
-      '0x28C6c06298d514Db089934071355E5743bf21d60', // Binance 2
-      '0x21a31Ee1afC51d94C2eFcCAaE2d4F66bE0E9Cb4A', // Coinbase
-      '0x0aB52FcCb356fC488f499353eDbe1eaeCb523C3E', // OKX
+      '0x3f5ce5fbfe3e9af3971dd833d26ba9b5c936f0be', // Binance
+      '0x28c6c06298d514db089934071355e5743bf21d60', // Binance 2
+      '0x21a31ee1afc51d94c2efccaa e2d4f66be0e9cb4a', // Coinbase
     ]);
 
-    // Known bridges
     this.bridgeAddresses = new Set([
-      '0xae2Fc483527B8EF99EB5D9B44875F005ba1FaE13', // Across
-      '0x2f2a2543B76A4166549F7aaB2e75B0cA52d2C2A6', // WBTC
-      '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff', // Hop
+      '0xae2fc483527b8ef99eb5d9b44875f005ba1fae13', // Across
+      '0x2f2a2543b76a4166549f7aab2e75b0ca52d2c2a6', // WBTC
     ]);
 
-    // Known staking contracts
     this.stakingAddresses = new Set([
-      '0x0000000000000000000000000000000000000000', // Add actual addresses
+      // Add staking contract addresses
     ]);
   }
 
@@ -77,62 +88,96 @@ export class TransactionClassifier {
     return TransactionClassifier.instance;
   }
 
+  /**
+   * Classify transaction using events - COMPLETE PICTURE
+   */
   classify(
-    transaction: any,
+    txHash: string,
+    chain: string,
+    fromAddress: string,
+    toAddress: string,
+    timestamp: Date,
+    blockNumber: number,
+    logs: any[],
     tokenTransfers: any[],
-    logs: any[]
+    status: string
   ): ClassificationResult {
     const reasons: string[] = [];
     let confidence = 0;
     let type = TransactionType.UNKNOWN;
 
     // 1. Check if transaction failed
-    if (transaction.status === 'FAILED') {
+    if (status === 'FAILED') {
       return {
         type: TransactionType.UNKNOWN,
         confidence: 0,
         reasons: ['Transaction failed on-chain'],
-        metadata: { status: 'FAILED' },
+        events: [],
+        metadata: { txHash, blockNumber, timestamp, status: 'FAILED' },
       };
     }
 
-    // 2. Check if DEX interaction
-    const isDEX = this.isDEXInteraction(transaction, logs);
-    if (isDEX) {
-      reasons.push('DEX interaction detected');
-      confidence += 30;
+    // 2. Normalize events
+    const normalizedEvents = logs.map(log =>
+      this.eventNormalizer.normalizeEvent(
+        log,
+        chain,
+        blockNumber,
+        '', // blockHash
+        txHash,
+        timestamp
+      )
+    );
+
+    // 3. Classify events
+    const eventResults = normalizedEvents.map(e =>
+      this.eventNormalizer.classifyEvent(e)
+    );
+
+    // 4. Check if any events indicate a trade
+    const hasTrade = eventResults.some(r => r.isTrade);
+
+    if (hasTrade) {
+      reasons.push('Trade event detected');
+      confidence += 40;
+
+      // Extract trade info
+      const tradeInfo = this.eventNormalizer.extractTradeInfo(normalizedEvents);
       
-      const swap = this.parseDEXSwap(transaction, tokenTransfers, logs);
-      if (swap) {
-        const isBuy = this.isBuyTransaction(transaction, swap);
+      if (tradeInfo) {
+        const isBuy = tradeInfo.side === 'BUY';
         type = isBuy ? TransactionType.BUY : TransactionType.SELL;
-        reasons.push(isBuy ? 'Tokens entered wallet from DEX' : 'Tokens left wallet via DEX');
-        confidence += 40;
-        
+        reasons.push(isBuy ? 'Buy side detected' : 'Sell side detected');
+        confidence += 30;
+
+        // Check if it's a swap
+        const swapEvents = eventResults.filter(r => r.type === 'SWAP');
+        if (swapEvents.length > 0) {
+          type = TransactionType.SWAP;
+          reasons.push('Swap detected');
+          confidence += 10;
+        }
+
         return {
           type,
           confidence: Math.min(confidence, 100),
           reasons,
-          tokenIn: swap.tokenIn,
-          tokenOut: swap.tokenOut,
-          amountIn: swap.amountIn,
-          amountOut: swap.amountOut,
-          valueUsd: swap.valueUsd,
-          protocol: swap.protocol,
-          side: isBuy ? 'BUY' : 'SELL',
-          metadata: {
-            txHash: transaction.hash,
-            blockNumber: transaction.blockNumber,
-            timestamp: transaction.timestamp,
-          },
+          tokenIn: tradeInfo.tokenIn,
+          tokenOut: tradeInfo.tokenOut,
+          amountIn: parseFloat(tradeInfo.amountIn || '0'),
+          amountOut: parseFloat(tradeInfo.amountOut || '0'),
+          protocol: tradeInfo.protocol,
+          side: tradeInfo.side,
+          events: normalizedEvents,
+          metadata: { txHash, blockNumber, timestamp },
         };
       }
     }
 
-    // 3. Check if exchange deposit/withdrawal
-    const isExchange = this.isExchangeInteraction(transaction);
+    // 5. Check if exchange deposit/withdrawal
+    const isExchange = this.isExchangeInteraction(toAddress);
     if (isExchange) {
-      type = this.determineExchangeAction(transaction, tokenTransfers);
+      type = this.determineExchangeAction(fromAddress, tokenTransfers);
       reasons.push(`Exchange ${type === TransactionType.EXCHANGE_DEPOSIT ? 'deposit' : 'withdrawal'}`);
       confidence += 30;
       
@@ -140,132 +185,95 @@ export class TransactionClassifier {
         type,
         confidence: Math.min(confidence, 70),
         reasons,
-        metadata: {
-          txHash: transaction.hash,
-          blockNumber: transaction.blockNumber,
-          timestamp: transaction.timestamp,
-        },
+        events: normalizedEvents,
+        metadata: { txHash, blockNumber, timestamp },
       };
     }
 
-    // 4. Check if bridge
-    const isBridge = this.isBridgeInteraction(transaction);
+    // 6. Check if bridge
+    const isBridge = this.isBridgeInteraction(toAddress);
     if (isBridge) {
       return {
         type: TransactionType.BRIDGE,
         confidence: 70,
         reasons: ['Bridge interaction detected'],
-        metadata: {
-          txHash: transaction.hash,
-          blockNumber: transaction.blockNumber,
-          timestamp: transaction.timestamp,
-        },
+        events: normalizedEvents,
+        metadata: { txHash, blockNumber, timestamp },
       };
     }
 
-    // 5. Check if staking
-    const isStake = this.isStakingInteraction(transaction);
+    // 7. Check if staking
+    const isStake = this.isStakingInteraction(toAddress);
     if (isStake) {
       return {
         type: TransactionType.STAKE,
         confidence: 70,
         reasons: ['Staking interaction detected'],
-        metadata: {
-          txHash: transaction.hash,
-          blockNumber: transaction.blockNumber,
-          timestamp: transaction.timestamp,
-        },
+        events: normalizedEvents,
+        metadata: { txHash, blockNumber, timestamp },
       };
     }
 
-    // 6. Check if simple transfer
+    // 8. Check if simple transfer
     const isTransfer = this.isSimpleTransfer(tokenTransfers);
     if (isTransfer) {
       return {
         type: TransactionType.TRANSFER,
         confidence: 80,
         reasons: ['Simple token transfer between wallets'],
-        metadata: {
-          txHash: transaction.hash,
-          blockNumber: transaction.blockNumber,
-          timestamp: transaction.timestamp,
-        },
+        events: normalizedEvents,
+        metadata: { txHash, blockNumber, timestamp },
       };
     }
 
-    // 7. Unknown
+    // 9. Check if approval
+    const isApproval = eventResults.some(r => r.type === 'APPROVAL');
+    if (isApproval) {
+      return {
+        type: TransactionType.APPROVAL,
+        confidence: 85,
+        reasons: ['Token approval'],
+        events: normalizedEvents,
+        metadata: { txHash, blockNumber, timestamp },
+      };
+    }
+
+    // 10. AMBIGUOUS - Store for review
+    reasons.push('Ambiguous transaction - requires review');
     return {
       type: TransactionType.UNKNOWN,
       confidence: 0,
-      reasons: ['Could not classify transaction confidently'],
-      metadata: {
-        txHash: transaction.hash,
-        blockNumber: transaction.blockNumber,
-        timestamp: transaction.timestamp,
-      },
+      reasons,
+      events: normalizedEvents,
+      metadata: { txHash, blockNumber, timestamp, requiresReview: true },
     };
   }
 
-  private isDEXInteraction(transaction: any, logs: any[]): boolean {
-    // Check if to address is a known DEX
-    if (transaction.toAddress && this.dexAddresses.has(transaction.toAddress.toLowerCase())) {
-      return true;
-    }
-    
-    // Check if logs contain swap events
-    for (const log of logs) {
-      if (log.topics && log.topics[0] === '0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822') {
-        return true; // Swap event
+  private isExchangeInteraction(toAddress: string): boolean {
+    return toAddress && this.exchangeAddresses.has(toAddress.toLowerCase());
+  }
+
+  private determineExchangeAction(walletAddress: string, tokenTransfers: any[]): TransactionType {
+    for (const transfer of tokenTransfers) {
+      if (transfer.fromAddress === walletAddress) {
+        return TransactionType.EXCHANGE_DEPOSIT;
+      }
+      if (transfer.toAddress === walletAddress) {
+        return TransactionType.EXCHANGE_WITHDRAWAL;
       }
     }
-    
-    return false;
+    return TransactionType.EXCHANGE_DEPOSIT;
   }
 
-  private parseDEXSwap(transaction: any, tokenTransfers: any[], logs: any[]) {
-    // Implement DEX swap parsing
-    // This would parse the actual swap data from logs and transfers
-    // Simplified for brevity
-    return {
-      tokenIn: '0x...',
-      tokenOut: '0x...',
-      amountIn: 1.5,
-      amountOut: 3000,
-      valueUsd: 3000,
-      protocol: 'Uniswap V2',
-    };
+  private isBridgeInteraction(toAddress: string): boolean {
+    return toAddress && this.bridgeAddresses.has(toAddress.toLowerCase());
   }
 
-  private isBuyTransaction(transaction: any, swap: any): boolean {
-    // Determine if wallet is buying or selling
-    // Wallet is buying if they receive the token
-    const isBuy = swap.tokenOut && swap.tokenOut !== '0x...';
-    return isBuy;
-  }
-
-  private isExchangeInteraction(transaction: any): boolean {
-    return this.exchangeAddresses.has(transaction.toAddress?.toLowerCase());
-  }
-
-  private determineExchangeAction(transaction: any, tokenTransfers: any[]): TransactionType {
-    // Check if tokens moved from wallet to exchange (deposit) or vice versa
-    const walletAddress = transaction.fromAddress;
-    const isDeposit = tokenTransfers.some(t => 
-      t.fromAddress === walletAddress && this.exchangeAddresses.has(t.toAddress.toLowerCase())
-    );
-    return isDeposit ? TransactionType.EXCHANGE_DEPOSIT : TransactionType.EXCHANGE_WITHDRAWAL;
-  }
-
-  private isBridgeInteraction(transaction: any): boolean {
-    return this.bridgeAddresses.has(transaction.toAddress?.toLowerCase());
-  }
-
-  private isStakingInteraction(transaction: any): boolean {
-    return this.stakingAddresses.has(transaction.toAddress?.toLowerCase());
+  private isStakingInteraction(toAddress: string): boolean {
+    return toAddress && this.stakingAddresses.has(toAddress.toLowerCase());
   }
 
   private isSimpleTransfer(tokenTransfers: any[]): boolean {
-    // Only one transfer, no DEX interaction
     return tokenTransfers.length === 1;
   }
 }
