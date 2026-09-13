@@ -1,3 +1,4 @@
+// src/lib/etherscan.ts
 import axios from 'axios';
 
 const BASE_URL = 'https://api.etherscan.io/v2/api';
@@ -87,12 +88,73 @@ export async function getNativeBalance(address: string, chain: ChainName = 'ethe
 }
 
 // ============================================================
-// TOKEN BALANCES (with batching and better error handling)
+// ✅ NEW: TOKEN TRANSFER HISTORY (for discovery)
 // ============================================================
 
 /**
- * Get all token balances for a wallet
- * Uses batching to avoid rate limiting
+ * ✅ Get token transfer history for a wallet
+ * 
+ * Use this ONLY for discovering which token contracts a wallet has interacted with.
+ * Do NOT use this for balance lookups (use direct RPC calls instead).
+ * 
+ * Returns raw Etherscan response with a list of token transfer events.
+ */
+export async function getTokenTransferHistory(
+  address: string,
+  chain: ChainName = 'ethereum',
+  page = 1,
+  offset = 100
+) {
+  const chainId = getChainId(chain);
+  
+  try {
+    console.log(`🔍 Fetching token transfer history for ${address} on ${chain}...`);
+    
+    const response = await axios.get(BASE_URL, {
+      params: {
+        chainid: chainId,
+        module: 'account',
+        action: 'tokentx',
+        address: address,
+        startblock: 0,
+        endblock: 99999999,
+        page: page,
+        offset: offset,
+        sort: 'desc',
+        apikey: ETHERSCAN_API_KEY
+      }
+    });
+
+    if (response.data.status !== '1') {
+      console.log(`ℹ️ No token transfers found for ${address}: ${response.data.message}`);
+      return { status: '0', message: response.data.message, result: [] };
+    }
+
+    console.log(`✅ Found ${response.data.result.length} token transfer events`);
+    return response.data;
+  } catch (error) {
+    console.error(`❌ Error fetching token transfer history:`, error);
+    return {
+      status: '0',
+      message: error instanceof Error ? error.message : 'Failed to fetch token transfer history',
+      result: []
+    };
+  }
+}
+
+// ============================================================
+// TOKEN BALANCES (LEGACY — kept for compatibility)
+// ============================================================
+
+/**
+ * ⚠️ LEGACY: Get all token balances via Etherscan API
+ * 
+ * This function has known issues with tokens like GEL where Etherscan
+ * returns "NOTOK" status. Use `tokenBalanceService.getTokenBalances()`
+ * from `@/lib/services/token-balance.service` instead — it uses direct
+ * RPC calls which are always accurate.
+ * 
+ * Kept here for backwards compatibility only.
  */
 export async function getTokenBalances(
   address: string,
@@ -144,9 +206,8 @@ export async function getTokenBalances(
     console.log(`📊 Found ${tokenList.length} unique token contracts`);
 
     // ✅ BATCH the requests to avoid rate limiting
-    // Process in batches of 5 with delays between batches
     const BATCH_SIZE = 5;
-    const DELAY_MS = 200; // 200ms between batches
+    const DELAY_MS = 200;
     const tokenBalances: any[] = [];
 
     for (let i = 0; i < tokenList.length; i += BATCH_SIZE) {
@@ -154,7 +215,6 @@ export async function getTokenBalances(
       
       console.log(`🔄 Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(tokenList.length / BATCH_SIZE)} (${batch.length} tokens)`);
       
-      // Process each token in the batch
       const batchResults = await Promise.all(
         batch.map(async (tokenInfo: any) => {
           try {
@@ -174,7 +234,6 @@ export async function getTokenBalances(
               const balance = balanceResponse.data.result;
               const balanceNum = parseFloat(balance);
               
-              // ✅ Log successful balance fetches
               if (balanceNum > 0) {
                 console.log(`✅ ${tokenInfo.tokenSymbol}: ${balanceNum / Math.pow(10, tokenInfo.tokenDecimal)} (${balance} wei)`);
               }
@@ -184,25 +243,21 @@ export async function getTokenBalances(
                 balance: balance,
               };
             } else {
-              // ✅ LOG the silent failure!
               console.warn(`⚠️ ${tokenInfo.tokenSymbol} balance fetch non-1 status:`, 
                 balanceResponse.data.message || 'Unknown error',
                 `(contract: ${tokenInfo.contractAddress.slice(0, 10)}...)`
               );
               
-              // Keep the token with zero balance so it's not lost
               return {
                 ...tokenInfo,
                 balance: '0',
               };
             }
           } catch (error) {
-            // ✅ LOG any errors
-            console.error(`❌ Failed to get balance for ${tokenInfo.tokenSymbol} (${tokenInfo.contractAddress.slice(0, 10)}...):`, 
+            console.error(`❌ Failed to get balance for ${tokenInfo.tokenSymbol}:`, 
               error instanceof Error ? error.message : 'Unknown error'
             );
             
-            // Keep the token with zero balance
             return {
               ...tokenInfo,
               balance: '0',
@@ -213,14 +268,12 @@ export async function getTokenBalances(
 
       tokenBalances.push(...batchResults);
 
-      // ✅ Delay between batches (except after the last batch)
       if (i + BATCH_SIZE < tokenList.length) {
         console.log(`⏳ Waiting ${DELAY_MS}ms before next batch...`);
         await new Promise(resolve => setTimeout(resolve, DELAY_MS));
       }
     }
 
-    // ✅ LOG the final results
     const tokensWithBalance = tokenBalances.filter(
       token => parseFloat(token.balance) > 0
     );

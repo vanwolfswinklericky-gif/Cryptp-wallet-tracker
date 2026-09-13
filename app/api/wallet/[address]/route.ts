@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { 
   getNativeBalance, 
   getTransactions, 
-  getTokenBalances,
+  getTokenTransferHistory,
   CHAIN_NAMES,
   CHAIN_SYMBOLS,
   type ChainName
@@ -15,6 +15,8 @@ import {
   validateAddress
 } from '@/lib/blockchain';
 import { checkRateLimit, createRateLimitResponse } from '@/lib/rate-limit';
+import { tokenBalanceService } from '@/lib/services/token-balance.service';
+import { logger } from '@/lib/logger';
 
 // ============================================================
 // TYPES
@@ -36,6 +38,8 @@ interface Token {
   tokenSymbol: string;
   decimals: number;
   balance: string;
+  formatted?: string;
+  valueUsd?: number;
 }
 
 interface WalletResponse {
@@ -108,7 +112,7 @@ export async function GET(
     });
 
   } catch (error) {
-    console.error('Error fetching wallet data:', error);
+    logger.error('Error fetching wallet data:', error);
     
     const errorResponse: ErrorResponse = {
       error: 'Failed to fetch wallet data',
@@ -150,7 +154,7 @@ async function handleBitcoin(
 
     return response;
   } catch (error) {
-    console.error('Bitcoin API error:', error);
+    logger.error('Bitcoin API error:', error);
     throw new Error(
       `Failed to fetch Bitcoin data: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
@@ -184,7 +188,7 @@ async function handleSolana(
 
     return response;
   } catch (error) {
-    console.error('Solana API error:', error);
+    logger.error('Solana API error:', error);
     throw new Error(
       `Failed to fetch Solana data: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
@@ -199,19 +203,20 @@ async function handleEVMChain(
   const chainName = CHAIN_NAMES[chain] || chain;
   const symbol = CHAIN_SYMBOLS[chain] || 'ETH';
 
-  // Fetch native balance
-  console.log(`🔍 Fetching balance for ${chain}...`);
+  // ============================================================
+  // 1. Fetch native balance (still from Etherscan — this works)
+  // ============================================================
+  logger.info(`🔍 Fetching balance for ${chain}...`);
   const balanceResponse = await getNativeBalance(address, chain);
   
-  // Log raw response for debugging
-  console.log(`📊 Raw balance response for ${chain}:`, {
+  logger.info(`📊 Raw balance response for ${chain}:`, {
     status: balanceResponse.status,
     message: balanceResponse.message,
     result: balanceResponse.result,
   });
 
   if (balanceResponse.status !== '1') {
-    console.warn(`⚠️ Balance API returned error for ${chain}:`, balanceResponse.message);
+    logger.warn(`⚠️ Balance API returned error for ${chain}:`, balanceResponse.message);
     throw new Error(`Balance API error: ${balanceResponse.message || 'Unknown error'}`);
   }
 
@@ -236,11 +241,15 @@ async function handleEVMChain(
     return response;
   }
 
-  // Fetch transactions (optional)
+  // ============================================================
+  // 2. Fetch transactions (from Etherscan — still works)
+  // ============================================================
   await fetchTransactions(address, chain, response);
 
-  // Fetch token balances (optional)
-  await fetchTokenBalances(address, chain, response);
+  // ============================================================
+  // 3. Fetch token balances (NEW: Direct RPC — the fix!)
+  // ============================================================
+  await fetchTokenBalancesDirect(address, chain, response);
 
   return response;
 }
@@ -255,58 +264,106 @@ async function fetchTransactions(
   response: WalletResponse
 ): Promise<void> {
   try {
-    console.log(`🔍 Fetching transactions for ${chain}...`);
+    logger.info(`🔍 Fetching transactions for ${chain}...`);
     const txResponse = await getTransactions(address, 1, 10, chain);
     
     if (txResponse.status === '1') {
       response.transactions = txResponse.result;
       response.transactionsCount = txResponse.result.length;
-      console.log(`✅ Found ${response.transactionsCount} transactions`);
+      logger.info(`✅ Found ${response.transactionsCount} transactions`);
     } else {
-      console.log(`ℹ️ No transactions found for ${chain}:`, txResponse.message);
+      logger.info(`ℹ️ No transactions found for ${chain}: ${txResponse.message}`);
     }
   } catch (error) {
-    console.error(`❌ Error fetching transactions for ${chain}:`, error);
+    logger.error(`❌ Error fetching transactions for ${chain}:`, error);
     // Don't throw - transactions are optional
   }
 }
 
-async function fetchTokenBalances(
+/**
+ * ✅ NEW: Fetch token balances using DIRECT CONTRACT CALLS
+ * 
+ * This replaces the old Etherscan-based token fetching that was failing
+ * with NOTOK status. Now we:
+ *   1. Discover which tokens the wallet has interacted with (via Etherscan transfer history)
+ *   2. Check each token balance DIRECTLY via RPC (no API key needed, no NOTOK errors)
+ */
+async function fetchTokenBalancesDirect(
   address: string,
   chain: ChainName,
   response: WalletResponse
 ): Promise<void> {
   try {
-    console.log(`🔍 Fetching token balances for ${chain}...`);
-    const tokenResult = await getTokenBalances(address, chain);
+    logger.info(`🔍 Fetching token balances for ${chain}...`);
+
+    // Step 1: Discover token addresses the wallet has interacted with
+    const tokenAddresses = await discoverTokenAddresses(address, chain);
     
-    // Check if the response is successful and has valid data
-    if (tokenResult?.status === '1' && Array.isArray(tokenResult.result)) {
-      // Filter out invalid tokens and map to clean structure
-      const validTokens = tokenResult.result
-        .filter((token: any) => token && typeof token === 'object')
-        .slice(0, 20)
-        .map((token: any) => ({
-          contractAddress: token.contractAddress || '0x0',
-          tokenName: token.tokenName || 'Unknown Token',
-          tokenSymbol: token.tokenSymbol || 'UNKNOWN',
-          decimals: parseInt(token.tokenDecimal) || 18,
-          balance: token.balance || '0',
-        }));
-      
-      response.tokens = validTokens;
-      console.log(`✅ Found ${response.tokens.length} tokens with balance`);
-    } else {
-      // Handle different error states
-      if (tokenResult?.message) {
-        console.log(`ℹ️ No token balances found: ${tokenResult.message}`);
-      } else {
-        console.log(`ℹ️ No token balances found for ${chain}`);
-      }
+    if (tokenAddresses.length === 0) {
+      logger.info(`ℹ️ No token interactions found for ${chain}`);
       response.tokens = [];
+      return;
     }
-  } catch (tokenError) {
-    console.error(`❌ Error fetching token balances for ${chain}:`, tokenError);
+
+    logger.info(`📊 Discovered ${tokenAddresses.length} potential token contracts`);
+
+    // Step 2: Fetch actual balances via direct RPC calls
+    const balances = await tokenBalanceService.getTokenBalances(
+      tokenAddresses,
+      address,
+      chain
+    );
+
+    // Step 3: Map to response format
+    response.tokens = balances.map((b) => ({
+      contractAddress: b.tokenAddress,
+      tokenName: b.tokenName,
+      tokenSymbol: b.tokenSymbol,
+      decimals: b.decimals,
+      balance: b.balance,
+      formatted: b.formatted,
+    }));
+
+    logger.info(`✅ Found ${response.tokens.length} tokens with balance`);
+
+  } catch (error) {
+    logger.error(`❌ Error fetching token balances for ${chain}:`, error);
     response.tokens = [];
+  }
+}
+
+/**
+ * ✅ Discover token addresses from Etherscan token transfer history
+ * 
+ * This uses Etherscan for what it's GOOD at (indexing historical transfers)
+ * but not for BALANCE lookups (which we do via direct RPC).
+ */
+async function discoverTokenAddresses(
+  address: string,
+  chain: ChainName
+): Promise<string[]> {
+  try {
+    const { getTokenTransferHistory } = await import('@/lib/etherscan');
+    const transferHistory = await getTokenTransferHistory(address, chain);
+    
+    if (!transferHistory || transferHistory.status !== '1' || !Array.isArray(transferHistory.result)) {
+      logger.warn(`⚠️ Could not fetch token transfer history for ${chain}`);
+      return [];
+    }
+
+    // Extract unique contract addresses
+    const uniqueContracts = new Set<string>();
+    transferHistory.result.forEach((tx: any) => {
+      if (tx.contractAddress) {
+        uniqueContracts.add(tx.contractAddress.toLowerCase());
+      }
+    });
+
+    logger.info(`📊 Found ${uniqueContracts.size} unique token contracts from history`);
+    return Array.from(uniqueContracts);
+
+  } catch (error) {
+    logger.error(`❌ Error discovering tokens:`, error);
+    return [];
   }
 }
