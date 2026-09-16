@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { TrendingUp, TrendingDown, Minus, RefreshCw } from 'lucide-react';
 import TokenLogo from './TokenLogo';
-import { getMultipleTokenPrices } from '@/lib/prices';
 
 interface PriceData {
   symbol: string;
@@ -18,7 +17,7 @@ interface Props {
   tokens?: { symbol: string; address: string; name: string; contractAddress?: string }[];
 }
 
-// ✅ Scam token patterns (expanded)
+// Scam token patterns
 const SCAM_SYMBOLS = [
   'BLINK', 'WWW.SOFTCRYPT.COM', 'MATKA', 'CATE', 'HUB', 'SOBA',
   'VITALIK', '0XWORMHOLE', 'NEIRO2.0', 'SOFTCRYPT', 'CATE.LIFE',
@@ -27,42 +26,57 @@ const SCAM_SYMBOLS = [
   'GIVEAWAY', 'WIN', 'PRIZE', 'STAKING', 'VAULT', 'POOL',
 ];
 
-// ✅ Known token names for display
+// Known token names
 const TOKEN_NAMES: Record<string, string> = {
-  'ETH': 'Ethereum',
-  'MATIC': 'Polygon',
-  'BNB': 'BNB',
-  'ARB': 'Arbitrum',
-  'OP': 'Optimism',
-  'AVAX': 'Avalanche',
-  'LINK': 'Chainlink',
-  'UNI': 'Uniswap',
-  'USDC': 'USD Coin',
-  'USDT': 'Tether',
-  'WBTC': 'Wrapped Bitcoin',
-  'DAI': 'Dai',
-  'SOL': 'Solana',
-  'BTC': 'Bitcoin',
-  'AAVE': 'Aave',
-  'MKR': 'Maker',
-  'CRV': 'Curve DAO',
-  'CVX': 'Convex Finance',
-  'DOG': 'Dogecoin',
-  'BABYASTEROID': 'Baby Asteroid',
+  ETH: 'Ethereum',
+  MATIC: 'Polygon',
+  BNB: 'BNB',
+  ARB: 'Arbitrum',
+  OP: 'Optimism',
+  AVAX: 'Avalanche',
+  LINK: 'Chainlink',
+  UNI: 'Uniswap',
+  USDC: 'USD Coin',
+  USDT: 'Tether',
+  WBTC: 'Wrapped Bitcoin',
+  DAI: 'Dai',
+  SOL: 'Solana',
+  BTC: 'Bitcoin',
+  AAVE: 'Aave',
+  MKR: 'Maker',
+  CRV: 'Curve DAO',
+  CVX: 'Convex Finance',
+  GEL: 'Gelato Network', // ✅ NEW
 };
 
-// ✅ Check if a symbol is a scam token
+// Token addresses for TokenLogo
+const TOKEN_ADDRESSES: Record<string, string> = {
+  ETH: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
+  USDC: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+  USDT: '0xdac17f958d2ee523a2206206994597c13d831ec7',
+  WBTC: '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599',
+  LINK: '0x514910771af9ca656af840dff83e8264ecf986ca',
+  UNI: '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984',
+  MATIC: '0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0',
+  BNB: '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c',
+  ARB: '0x912ce59144191c1204e64559fe8253a0e49e6548',
+  OP: '0x4200000000000000000000000000000000000042',
+  AVAX: '0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7',
+  DAI: '0x6b175474e89094c44da98b954eedeac495271d0f',
+  AAVE: '0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9',
+  MKR: '0x9f8f72aa9304c8b593d555f12ef6589cc3a579a2',
+  CRV: '0xd533a949740bb3306d119cc777fa900ba034cd52',
+  CVX: '0x4e3fbd56cd56c3e72c1403e103b45db9da5b9d2b',
+  GEL: '0x15b7c0c907e4c6b9adaaaabc300c08991d6cea05', // ✅ NEW
+};
+
 const isScamToken = (symbol: string): boolean => {
   if (!symbol) return true;
   const upper = symbol.toUpperCase();
-  return SCAM_SYMBOLS.some(scam =>
-    upper.includes(scam) || scam.includes(upper)
-  );
+  return SCAM_SYMBOLS.some((scam) => upper.includes(scam) || scam.includes(upper));
 };
 
-const getTokenName = (symbol: string): string => {
-  return TOKEN_NAMES[symbol] || symbol;
-};
+const getTokenName = (symbol: string): string => TOKEN_NAMES[symbol] || symbol;
 
 export default function LivePrices({ chain = 'ethereum', tokens = [] }: Props) {
   const [prices, setPrices] = useState<PriceData[]>([]);
@@ -71,49 +85,45 @@ export default function LivePrices({ chain = 'ethereum', tokens = [] }: Props) {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [apiFailed, setApiFailed] = useState(false);
   const [fetchedCount, setFetchedCount] = useState(0);
-  const [retryCount, setRetryCount] = useState(0);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // ✅ Build token list from props
+  // Build token list from props
   const buildTokenList = useCallback(() => {
     let tokenList: { symbol: string; address: string }[] = [];
 
     if (tokens && tokens.length > 0) {
       tokenList = tokens
-        .map(t => {
+        .map((t) => {
           const symbol = (t.symbol || (t as any).tokenSymbol)?.toUpperCase() || '';
-          const address = (t.address || (t as any).contractAddress) || '';
+          const address = t.address || (t as any).contractAddress || (t as any).tokenAddress || '';
           return { symbol, address };
         })
-        .filter(t => t.symbol && t.address)
-        .filter(t => !isScamToken(t.symbol))
+        .filter((t) => t.symbol && t.address)
+        .filter((t) => !isScamToken(t.symbol))
         .slice(0, 50);
     }
 
-    // ✅ Fallback to major tokens if no valid tokens
+    // Fallback to major tokens if no valid tokens
     if (tokenList.length === 0) {
       tokenList = [
-        { symbol: 'ETH', address: '0x0000000000000000000000000000000000000000' },
+        { symbol: 'ETH', address: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2' },
         { symbol: 'USDC', address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48' },
         { symbol: 'WBTC', address: '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599' },
         { symbol: 'LINK', address: '0x514910771af9ca656af840dff83e8264ecf986ca' },
         { symbol: 'UNI', address: '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984' },
-        { symbol: 'MATIC', address: '0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0' },
-        { symbol: 'BNB', address: '0xb8c77482e45f1f44de1745f52c74426c631bdd52' },
       ];
     }
 
     return tokenList;
   }, [tokens]);
 
-  // ✅ Fetch prices with timeout and retry
+  // ✅ Fetch prices DIRECTLY from /api/prices (the working endpoint)
   const fetchLivePrices = useCallback(async () => {
-    // Cancel any ongoing request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-
     if (isRefreshing) return;
+
     setIsRefreshing(true);
     setApiFailed(false);
 
@@ -122,68 +132,59 @@ export default function LivePrices({ chain = 'ethereum', tokens = [] }: Props) {
 
     try {
       const tokenList = buildTokenList();
-      console.log(`🔍 Fetching prices for ${tokenList.length} tokens...`);
-
-      // ✅ Call with timeout (8 seconds)
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Request timeout')), 8000);
-      });
-
-      const fetchPromise = getMultipleTokenPrices(tokenList);
-      const priceData = await Promise.race([fetchPromise, timeoutPromise]) as Record<string, number>;
-
-      const validPrices = Object.values(priceData).filter(p => p > 0).length;
-      setFetchedCount(validPrices);
-
-      const formattedPrices: PriceData[] = tokenList.map(t => ({
-        symbol: t.symbol,
-        name: getTokenName(t.symbol),
-        price: priceData[t.symbol] || 0,
-        priceChange24h: 0,
-        currency: 'USD',
-      }));
-
-      const hasValidPrices = formattedPrices.some(p => p.price > 0);
-
-      if (hasValidPrices) {
-        setPrices(formattedPrices);
-        setApiFailed(false);
-        setRetryCount(0);
-        console.log(`✅ LivePrices updated with ${validPrices} real prices`);
-      } else {
-        // ✅ Retry logic - exponential backoff
-        if (retryCount < 3) {
-          console.warn(`⚠️ No valid prices, retrying (${retryCount + 1}/3)...`);
-          setRetryCount(prev => prev + 1);
-          setTimeout(() => {
-            fetchLivePrices();
-          }, Math.pow(2, retryCount) * 1000);
-        } else {
-          setPrices(formattedPrices);
-          setApiFailed(true);
-          console.warn('⚠️ No valid prices received after retries');
-        }
-      }
-
-      setLastUpdated(new Date());
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.log('⏹️ Request cancelled');
+      if (tokenList.length === 0) {
+        setIsLoading(false);
+        setIsRefreshing(false);
         return;
       }
 
-      console.error('❌ Failed to fetch live prices:', error);
+      const addresses = tokenList.map((t) => t.address.toLowerCase()).join(',');
+      const url = `/api/prices?addresses=${addresses}&chain=${chain}`;
 
-      // ✅ Retry on error
-      if (retryCount < 3) {
-        console.warn(`⚠️ Error, retrying (${retryCount + 1}/3)...`);
-        setRetryCount(prev => prev + 1);
-        setTimeout(() => {
-          fetchLivePrices();
-        }, Math.pow(2, retryCount) * 1000);
-      } else {
-        setApiFailed(true);
+      console.log(`🔍 Fetching prices for ${tokenList.length} tokens...`);
+      console.log(`   URL: ${url.slice(0, 120)}...`);
+
+      const response = await fetch(url, { signal: controller.signal });
+
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}`);
       }
+
+      // ✅ Server returns { [address]: { usd, source } }
+      const rawData: Record<string, { usd: number | string; source: string }> =
+        await response.json();
+
+      console.log(`📊 Received prices:`, rawData);
+
+      // ✅ Normalize prices (string → number) and map to tokens
+      const formattedPrices: PriceData[] = tokenList.map((token) => {
+        const addr = token.address.toLowerCase();
+        const priceEntry = rawData[addr];
+        const rawPrice = priceEntry?.usd;
+        const price =
+          typeof rawPrice === 'string' ? parseFloat(rawPrice) :
+          typeof rawPrice === 'number' ? rawPrice : 0;
+
+        return {
+          symbol: token.symbol,
+          name: getTokenName(token.symbol),
+          price: isNaN(price) ? 0 : price,
+          priceChange24h: 0,
+          currency: 'USD',
+        };
+      });
+
+      const validCount = formattedPrices.filter((p) => p.price > 0).length;
+      setFetchedCount(validCount);
+      setPrices(formattedPrices);
+      setApiFailed(validCount === 0);
+      setLastUpdated(new Date());
+
+      console.log(`✅ LivePrices updated with ${validCount} real prices`);
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return;
+      console.error('❌ Failed to fetch live prices:', error);
+      setApiFailed(true);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -191,24 +192,23 @@ export default function LivePrices({ chain = 'ethereum', tokens = [] }: Props) {
         abortControllerRef.current = null;
       }
     }
-  }, [buildTokenList, retryCount]);
+  }, [buildTokenList, chain, isRefreshing]);
 
-  // ✅ Initial fetch and auto-refresh
+  // ✅ Initial fetch and periodic refresh
   useEffect(() => {
     fetchLivePrices();
-    const interval = setInterval(fetchLivePrices, 60000); // Refresh every 60s
+    const interval = setInterval(fetchLivePrices, 60000);
     return () => {
       clearInterval(interval);
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+      if (abortControllerRef.current) abortControllerRef.current.abort();
     };
-  }, [tokens, fetchLivePrices]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tokens, chain]);
 
   const getChangeColor = (change: number) => {
-    if (change > 0) return 'text-green-600 dark:text-green-400';
-    if (change < 0) return 'text-red-600 dark:text-red-400';
-    return 'text-gray-500 dark:text-gray-400';
+    if (change > 0) return 'text-emerald-400';
+    if (change < 0) return 'text-rose-400';
+    return 'text-emerald-100/50';
   };
 
   const getChangeIcon = (change: number) => {
@@ -217,22 +217,29 @@ export default function LivePrices({ chain = 'ethereum', tokens = [] }: Props) {
     return <Minus className="w-3 h-3" />;
   };
 
-  // ✅ Loading state with skeleton
+  const formatPrice = (price: number) => {
+    if (price === 0) return '—';
+    if (price < 0.001) return `$${price.toFixed(6)}`;
+    if (price < 0.01) return `$${price.toFixed(5)}`;
+    if (price < 1) return `$${price.toFixed(4)}`;
+    if (price < 100) return `$${price.toFixed(2)}`;
+    return `$${price.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-3">
         {[1, 2, 3, 4].map((i) => (
           <div key={i} className="flex items-center justify-between animate-pulse">
             <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-full bg-gray-200 dark:bg-gray-700" />
+              <div className="h-8 w-8 rounded-full bg-emerald-900/30" />
               <div>
-                <div className="h-3 w-12 bg-gray-200 dark:bg-gray-700 rounded" />
-                <div className="h-2 w-16 bg-gray-200 dark:bg-gray-700 rounded mt-1" />
+                <div className="h-3 w-12 bg-emerald-900/30 rounded" />
+                <div className="h-2 w-16 bg-emerald-900/30 rounded mt-1" />
               </div>
             </div>
             <div className="text-right">
-              <div className="h-3 w-16 bg-gray-200 dark:bg-gray-700 rounded" />
-              <div className="h-2 w-12 bg-gray-200 dark:bg-gray-700 rounded mt-1" />
+              <div className="h-3 w-16 bg-emerald-900/30 rounded" />
             </div>
           </div>
         ))}
@@ -242,29 +249,31 @@ export default function LivePrices({ chain = 'ethereum', tokens = [] }: Props) {
 
   return (
     <div className="space-y-3">
-      {/* ✅ Header with status */}
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex items-center justify-between pb-2 border-b border-emerald-900/30">
         <div className="flex items-center gap-2">
           {apiFailed ? (
-            <span className="text-[10px] text-yellow-500 dark:text-yellow-400">
-              ⚠️ Using limited data
+            <span className="text-[10px] text-amber-400 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              Limited data
             </span>
           ) : (
-            <span className="text-[10px] text-green-500 dark:text-green-400">
-              ✅ {fetchedCount} prices live
+            <span className="text-[10px] text-emerald-400 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              {fetchedCount} live prices
             </span>
           )}
         </div>
         <div className="flex items-center gap-2">
           {lastUpdated && (
-            <span className="text-[10px] text-gray-400 dark:text-gray-500">
-              Updated {lastUpdated.toLocaleTimeString()}
+            <span className="text-[10px] text-emerald-100/40">
+              {lastUpdated.toLocaleTimeString()}
             </span>
           )}
           <button
             onClick={fetchLivePrices}
             disabled={isRefreshing}
-            className="p-1.5 rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:opacity-50 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+            className="p-1.5 rounded-lg text-emerald-100/50 transition-colors hover:bg-emerald-500/10 hover:text-emerald-300 disabled:opacity-50"
             title="Refresh prices"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -272,13 +281,13 @@ export default function LivePrices({ chain = 'ethereum', tokens = [] }: Props) {
         </div>
       </div>
 
-      {/* ✅ Price list */}
+      {/* Price list */}
       {prices.map((item) => {
         const hasPrice = item.price > 0;
         return (
           <div
             key={item.symbol}
-            className="flex items-center justify-between p-2 rounded-xl transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30"
+            className="flex items-center justify-between p-2 rounded-xl transition-colors hover:bg-emerald-500/5"
           >
             <div className="flex items-center gap-3">
               <TokenLogo
@@ -288,17 +297,13 @@ export default function LivePrices({ chain = 'ethereum', tokens = [] }: Props) {
                 size={32}
               />
               <div>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                  {item.symbol}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {item.name}
-                </p>
+                <p className="text-sm font-semibold text-white">{item.symbol}</p>
+                <p className="text-xs text-emerald-100/50">{item.name}</p>
               </div>
             </div>
             <div className="text-right">
-              <p className={`text-sm font-semibold ${hasPrice ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'}`}>
-                {hasPrice ? `$${item.price.toFixed(2)}` : '—'}
+              <p className={`text-sm font-semibold ${hasPrice ? 'text-white' : 'text-emerald-100/30'}`}>
+                {formatPrice(item.price)}
               </p>
               {hasPrice && item.priceChange24h !== 0 && (
                 <div className={`flex items-center justify-end gap-1 text-xs font-medium ${getChangeColor(item.priceChange24h)}`}>
@@ -310,27 +315,12 @@ export default function LivePrices({ chain = 'ethereum', tokens = [] }: Props) {
           </div>
         );
       })}
+
+      {prices.length === 0 && (
+        <div className="text-center text-xs text-emerald-100/40 py-6">
+          No tokens to display
+        </div>
+      )}
     </div>
   );
 }
-
-// ✅ Token address mappings for TokenLogo
-const TOKEN_ADDRESSES: Record<string, string> = {
-  'ETH': '0xdac17f958d2ee523a2206206994597c13d831ec7',
-  'USDC': '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
-  'USDT': '0xdac17f958d2ee523a2206206994597c13d831ec7',
-  'WBTC': '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599',
-  'LINK': '0x514910771af9ca656af840dff83e8264ecf986ca',
-  'UNI': '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984',
-  'MATIC': '0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0',
-  'BNB': '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c',
-  'ARB': '0x912ce59144191c1204e64559fe8253a0e49e6548',
-  'OP': '0x4200000000000000000000000000000000000042',
-  'AVAX': '0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7',
-  'DAI': '0x6b175474e89094c44da98b954eedeac495271d0f',
-  'SOL': '0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0',
-  'AAVE': '0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9',
-  'MKR': '0x9f8f72aa9304c8b593d555f12ef6589cc3a579a2',
-  'CRV': '0xd533a949740bb3306d119cc777fa900ba034cd52',
-  'CVX': '0x4e3fbd56cd56c3e72c1403e103b45db9da5b9d2b',
-};
