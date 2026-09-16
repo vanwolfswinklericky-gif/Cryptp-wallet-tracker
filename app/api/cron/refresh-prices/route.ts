@@ -22,14 +22,21 @@ async function handler(request: NextRequest) {
   try {
     // ============================================================
     // Step 1: Get all unique token addresses across all wallets
+    // 
+    // ✅ FIX: TokenTransfer does NOT have a `chain` field.
+    //         Chain lives on the related Transaction model.
+    //         So we fetch it via the transaction relation.
     // ============================================================
     const tokens = await prisma.tokenTransfer.findMany({
       distinct: ['tokenAddress'],
       select: {
         tokenAddress: true,
-        chain: true,
+        tokenSymbol: true,
+        transaction: {
+          select: { chain: true }, // ✅ Get chain from transaction
+        },
       },
-      take: 500, // ✅ Reduced to 500 to stay within API limits
+      take: 500, // Reduced to 500 to stay within API limits
     });
 
     logger.info(`📊 Found ${tokens.length} unique tokens to refresh`);
@@ -45,13 +52,13 @@ async function handler(request: NextRequest) {
     }
 
     // ============================================================
-    // Step 2: Batch fetch prices (grouped by chain for efficiency)
+    // Step 2: Build price requests (extract chain from transaction)
     // ============================================================
     const requests = tokens
-      .filter((t) => t.tokenAddress && t.chain)
+      .filter((t) => t.tokenAddress && t.transaction?.chain)
       .map((t) => ({
         address: t.tokenAddress,
-        chain: t.chain || 'ethereum',
+        chain: t.transaction?.chain || 'ethereum', // ✅ Correct access
       }));
 
     logger.info(`🔄 Fetching ${requests.length} prices...`);
@@ -72,15 +79,18 @@ async function handler(request: NextRequest) {
       const token = tokens.find(
         (t) => t.tokenAddress.toLowerCase() === addr.toLowerCase()
       );
-      
+
       if (!token) continue;
 
+      // ✅ FIX: Chain is on the related transaction, not on TokenTransfer
+      const chain = token.transaction?.chain || 'ethereum';
+
       try {
-        // Check if a record already exists for this token today
+        // Check if a record already exists for this token recently
         const existing = await prisma.tokenPrice.findFirst({
           where: {
             tokenId: addr,
-            chain: token.chain || 'ethereum',
+            chain,
             timestamp: {
               gte: new Date(Date.now() - 5 * 60 * 1000), // Within last 5 min
             },
@@ -91,7 +101,7 @@ async function handler(request: NextRequest) {
           await prisma.tokenPrice.create({
             data: {
               tokenId: addr,
-              chain: token.chain || 'ethereum',
+              chain,
               priceUsd: price,
               timestamp: new Date(),
             },
