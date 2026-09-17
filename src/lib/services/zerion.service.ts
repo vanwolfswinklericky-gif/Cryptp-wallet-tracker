@@ -3,12 +3,8 @@ import { logger } from '@/lib/logger';
 
 const ZERION_API_KEY = process.env.ZERION_API_KEY;
 
-// Base64 encode the API key for Basic Auth
 function getAuthHeader(): string {
-  if (!ZERION_API_KEY) {
-    throw new Error('ZERION_API_KEY is not set');
-  }
-  // Basic Auth: username is the API key, password is empty
+  if (!ZERION_API_KEY) throw new Error('ZERION_API_KEY is not set');
   return `Basic ${Buffer.from(`${ZERION_API_KEY}:`).toString('base64')}`;
 }
 
@@ -44,64 +40,13 @@ export class ZerionService {
   }
 
   /**
-   * Fetch complete wallet portfolio from Zerion
-   * Returns tokens with balances and USD values across ALL chains
+   * ✅ Fetch complete wallet data in ONE call
+   * Returns: portfolio value + positions (tokens with prices)
    */
   async getWalletPortfolio(address: string): Promise<ZerionWalletData> {
-    const url = `https://api.zerion.io/v1/wallets/${address}/portfolio?currency=usd`;
-
-    logger.info(`🔍 Fetching Zerion portfolio for ${address}`);
-
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': getAuthHeader(),
-        'Accept': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error(`❌ Zerion API error ${response.status}:`, errorText);
-      throw new Error(`Zerion API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const attributes = data.data?.attributes;
-
-    if (!attributes) {
-      logger.warn('⚠️ No portfolio data returned from Zerion');
-      return this.emptyWalletData(address);
-    }
-
-    // Zerion returns aggregated portfolio data
-    const totalValue = attributes.total?.positions || 0;
-    const changes = attributes.changes || {};
-
-    logger.info(`✅ Zerion portfolio: $${totalValue.toFixed(2)} total value`);
-
-    // Now fetch positions for token details
-    const positions = await this.getWalletPositions(address);
-
-    return {
-      address,
-      chain: 'ethereum', // Zerion aggregates all chains
-      balance: 0, // Zerion doesn't return native balance separately
-      balanceFormatted: totalValue.toFixed(2),
-      symbol: 'USD', // Portfolio value in USD
-      transactions: [], // Fetch separately if needed
-      transactionsCount: 0,
-      tokens: positions,
-    };
-  }
-
-  /**
-   * Fetch token positions (balances + prices) from Zerion
-   * This gives you every token with balance > 0, already priced
-   */
-  async getWalletPositions(address: string): Promise<ZerionPosition[]> {
     const url = `https://api.zerion.io/v1/wallets/${address}/positions/?currency=usd&filter[trash]=only_non_trash&sort=value`;
 
-    logger.info(`🔍 Fetching Zerion positions for ${address}`);
+    logger.info(`🔍 Fetching Zerion portfolio+positions for ${address}`);
 
     const response = await fetch(url, {
       headers: {
@@ -112,17 +57,15 @@ export class ZerionService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.error(`❌ Zerion positions error ${response.status}:`, errorText);
-      return [];
+      logger.error(`❌ Zerion API error ${response.status}:`, errorText.slice(0, 200));
+      return this.emptyWalletData(address);
     }
 
     const data = await response.json();
     const positions = data.data || [];
 
-    logger.info(`✅ Found ${positions.length} positions`);
-
-    // Transform Zerion format to your expected format
-    return positions.map((pos: any) => {
+    // Transform Zerion positions to our format
+    const tokens: ZerionPosition[] = positions.map((pos: any) => {
       const attrs = pos.attributes;
       const fungible = attrs.fungible_info;
       const impl = fungible?.implementations?.[0] || {};
@@ -137,15 +80,29 @@ export class ZerionService {
         valueUsd: attrs.value || 0,
       };
     });
+
+    // Calculate total value
+    const totalValue = tokens.reduce((sum, t) => sum + (t.valueUsd || 0), 0);
+
+    logger.info(`✅ Zerion: ${tokens.length} positions, $${totalValue.toFixed(2)} total`);
+
+    return {
+      address,
+      chain: 'ethereum',
+      balance: totalValue,
+      balanceFormatted: totalValue.toFixed(2),
+      symbol: 'USD',
+      transactions: [],
+      transactionsCount: 0,
+      tokens,
+    };
   }
 
   /**
-   * Fetch wallet transactions from Zerion
+   * ✅ Fetch wallet transactions (separate call, optional)
    */
   async getWalletTransactions(address: string, limit: number = 25): Promise<any[]> {
     const url = `https://api.zerion.io/v1/wallets/${address}/transactions/?currency=usd&page[size]=${limit}`;
-
-    logger.info(`🔍 Fetching Zerion transactions for ${address}`);
 
     const response = await fetch(url, {
       headers: {

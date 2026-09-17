@@ -85,32 +85,47 @@ export async function GET(
     logger.info(`🔍 Fetching wallet data for ${cleanAddress} on ${chain}`);
 
     // ============================================================
-    // Fetch portfolio from Zerion (all chains aggregated)
+    // ✅ ONE call for portfolio + positions
+    // (getWalletPortfolio now includes positions with prices)
     // ============================================================
     const portfolio = await zerionService.getWalletPortfolio(cleanAddress);
-    const positions = await zerionService.getWalletPositions(cleanAddress);
 
-    // Fetch transactions if requested
-    let transactions: any[] = [];
+    // ============================================================
+    // ✅ Optional: Fetch transactions separately (with delay to avoid 429)
+    // ============================================================
     if (includeTxs) {
       try {
-        transactions = await zerionService.getWalletTransactions(cleanAddress, 25);
+        // 500ms delay to stay under Zerion's 2 req/sec rate limit
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        
+        const transactions = await zerionService.getWalletTransactions(
+          cleanAddress,
+          25
+        );
+        portfolio.transactions = transactions;
+        portfolio.transactionsCount = transactions.length;
+        logger.info(`✅ Fetched ${transactions.length} transactions`);
       } catch (txError) {
-        logger.warn('⚠️ Transaction fetch failed, continuing without them:', txError);
+        logger.warn(
+          '⚠️ Transaction fetch failed, continuing without them:',
+          txError
+        );
       }
     }
 
+    // ============================================================
     // Build response
+    // ============================================================
     const response: WalletResponse = {
       address: cleanAddress,
       chain: chain,
       chainName: chain.charAt(0).toUpperCase() + chain.slice(1),
       symbol: 'USD',
-      balance: parseFloat(portfolio.balanceFormatted) || 0,
+      balance: portfolio.balance,
       balanceFormatted: portfolio.balanceFormatted,
-      transactions,
-      transactionsCount: transactions.length,
-      tokens: positions.map((pos) => ({
+      transactions: portfolio.transactions,
+      transactionsCount: portfolio.transactionsCount,
+      tokens: portfolio.tokens.map((pos) => ({
         contractAddress: pos.tokenAddress,
         tokenName: pos.tokenName,
         tokenSymbol: pos.tokenSymbol,
@@ -122,7 +137,7 @@ export async function GET(
     };
 
     logger.info(
-      `✅ Wallet data ready: ${positions.length} tokens, ${transactions.length} transactions`
+      `✅ Wallet data ready: ${portfolio.tokens.length} tokens, ${portfolio.transactionsCount} transactions`
     );
 
     return NextResponse.json(response, {
