@@ -7,9 +7,8 @@ import { Redis } from '@upstash/redis';
 // ============================================================
 
 const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY;
-const COINGECKO_API_KEY = process.env.COINGECKO_API_KEY; // optional paid
+const COINGECKO_API_KEY = process.env.COINGECKO_API_KEY;
 
-// Redis cache (Upstash)
 let redis: Redis | null = null;
 try {
   if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
@@ -35,7 +34,16 @@ const ALCHEMY_PRICE_CHAINS: Record<string, string> = {
   base: 'base-mainnet',
 };
 
-// In-memory rate limit for CoinGecko (avoid 429s)
+const GECKOTERMINAL_NETWORKS: Record<string, string> = {
+  ethereum: 'eth',
+  polygon: 'polygon_pos',
+  bsc: 'bsc',
+  arbitrum: 'arbitrum',
+  optimism: 'optimism',
+  avalanche: 'avax',
+  base: 'base',
+};
+
 let coinGeckoCooldown = 0;
 
 interface PriceData {
@@ -60,7 +68,6 @@ async function getCachedPrices(addresses: string[], chain: string): Promise<Pric
     const result: PriceMap = {};
     addresses.forEach((addr, i) => {
       const value = values[i];
-      // ✅ Stricter validation of cached data
       if (
         value &&
         typeof value === 'object' &&
@@ -81,15 +88,11 @@ async function getCachedPrices(addresses: string[], chain: string): Promise<Pric
 async function setCachedPrices(prices: PriceMap, chain: string, ttl: number): Promise<void> {
   if (!redis) return;
 
-  // ✅ CRITICAL FIX: Guard against empty prices to prevent "Pipeline is empty" error
   const entries = Object.entries(prices).filter(
     ([_, data]) => data && typeof data.usd === 'number' && data.usd > 0
   );
 
-  if (entries.length === 0) {
-    // Nothing valid to cache — return early
-    return;
-  }
+  if (entries.length === 0) return;
 
   try {
     const pipeline = redis.pipeline();
@@ -121,10 +124,7 @@ export async function GET(request: NextRequest) {
   });
 
   if (!addressesParam && !symbolsParam) {
-    return NextResponse.json(
-      { error: 'Missing addresses or symbols parameter' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
   }
 
   const addresses = (addressesParam?.split(',').filter(Boolean) || [])
@@ -138,23 +138,20 @@ export async function GET(request: NextRequest) {
   }
 
   if (addresses.length > 100) {
-    return NextResponse.json(
-      { error: 'Maximum 100 addresses per request' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: 'Maximum 100 addresses' }, { status: 400 });
   }
 
   const prices: PriceMap = {};
 
   // ============================================================
-  // STEP 1: Check Redis cache (fastest)
+  // STEP 1: Redis cache
   // ============================================================
   const cached = await getCachedPrices(addresses, chain);
   Object.assign(prices, cached);
   console.log(`📦 Cache hit: ${Object.keys(cached).length}/${addresses.length}`);
 
   // ============================================================
-  // STEP 2: Fetch missing addresses via Alchemy Prices API
+  // STEP 2: Alchemy Prices API
   // ============================================================
   const missingFromCache = addresses.filter(a => !prices[a]);
 
@@ -162,13 +159,11 @@ export async function GET(request: NextRequest) {
     const alchemyPrices = await fetchFromAlchemy(missingFromCache, chain);
     Object.assign(prices, alchemyPrices);
     console.log(`✅ Alchemy: +${Object.keys(alchemyPrices).length} prices`);
-
-    // Cache them (short TTL for fresh data)
     await setCachedPrices(alchemyPrices, chain, 60);
   }
 
   // ============================================================
-  // STEP 3: Fetch still-missing addresses via CoinGecko
+  // STEP 3: CoinGecko
   // ============================================================
   const stillMissing = addresses.filter(a => !prices[a]);
 
@@ -178,21 +173,31 @@ export async function GET(request: NextRequest) {
       const cgPrices = await fetchFromCoinGecko(stillMissing, []);
       Object.assign(prices, cgPrices);
       console.log(`✅ CoinGecko: +${Object.keys(cgPrices).length} prices`);
-
-      // Cache with longer TTL
       await setCachedPrices(cgPrices, chain, 300);
 
-      // Set cooldown if we got no results (likely rate limited)
       if (Object.keys(cgPrices).length === 0) {
-        coinGeckoCooldown = now + 30000; // 30 second cooldown
+        coinGeckoCooldown = now + 30000;
       }
     } else {
-      console.log(`⏸️ CoinGecko in cooldown, skipping`);
+      console.log(`⏸️ CoinGecko in cooldown`);
     }
   }
 
   // ============================================================
-  // STEP 4: Fetch by symbol if requested
+  // ✅ STEP 3.5: GeckoTerminal (long-tail tokens like YRISE)
+  // ============================================================
+  const stillMissingAfterCG = addresses.filter(a => !prices[a]);
+
+  if (stillMissingAfterCG.length > 0) {
+    console.log(`🔄 Trying GeckoTerminal for ${stillMissingAfterCG.length} long-tail tokens`);
+    const gtPrices = await fetchFromGeckoTerminal(stillMissingAfterCG, chain);
+    Object.assign(prices, gtPrices);
+    console.log(`✅ GeckoTerminal: +${Object.keys(gtPrices).length} prices`);
+    await setCachedPrices(gtPrices, chain, 600);
+  }
+
+  // ============================================================
+  // STEP 4: Symbols
   // ============================================================
   if (symbols.length > 0) {
     const symbolPrices = await fetchSymbolsViaCoinGecko(symbols);
@@ -221,7 +226,6 @@ async function fetchFromAlchemy(addresses: string[], chain: string): Promise<Pri
   const prices: PriceMap = {};
 
   try {
-    // Alchemy Prices API allows up to 25 addresses per request
     const BATCH_SIZE = 25;
 
     for (let i = 0; i < addresses.length; i += BATCH_SIZE) {
@@ -278,11 +282,59 @@ async function fetchFromAlchemy(addresses: string[], chain: string): Promise<Pri
 }
 
 // ============================================================
+// ✅ GECKOTERMINAL (Tier 3 - long-tail tokens)
+// ============================================================
+
+async function fetchFromGeckoTerminal(
+  addresses: string[],
+  chain: string
+): Promise<PriceMap> {
+  if (addresses.length === 0) return {};
+
+  const network = GECKOTERMINAL_NETWORKS[chain] || 'eth';
+  const prices: PriceMap = {};
+
+  for (const addr of addresses) {
+    try {
+      const url = `https://api.geckoterminal.com/api/v2/networks/${network}/tokens/${addr.toLowerCase()}`;
+
+      const response = await fetch(url, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Crypto-Wallet-Tracker/1.0',
+        },
+      });
+
+      if (!response.ok) {
+        continue;
+      }
+
+      const data = await response.json();
+      const priceUsd = data.data?.attributes?.price_usd;
+      const symbol = data.data?.attributes?.symbol;
+
+      if (priceUsd && parseFloat(priceUsd) > 0) {
+        prices[addr.toLowerCase()] = {
+          usd: parseFloat(priceUsd),
+          symbol: symbol || undefined,
+          source: 'geckoterminal',
+        };
+        console.log(`  ✅ GeckoTerminal: ${symbol} = $${priceUsd}`);
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    } catch {
+      continue;
+    }
+  }
+
+  return prices;
+}
+
+// ============================================================
 // COINGECKO FALLBACK
 // ============================================================
 
-// Known contract addresses → CoinGecko IDs
-// This grows over time but only for MAJOR tokens
 const ADDRESS_TO_COINGECKO: Record<string, Record<string, string>> = {
   ethereum: {
     '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2': 'ethereum',
@@ -353,10 +405,8 @@ async function fetchFromCoinGecko(addresses: string[], _symbols: string[]): Prom
   try {
     const addressToCgId: Record<string, string> = {};
 
-    // Look up each address in ALL chain mappings
     for (const addr of addresses) {
       const lower = addr.toLowerCase();
-
       for (const chainMap of Object.values(ADDRESS_TO_COINGECKO)) {
         const cgId = chainMap[lower];
         if (cgId) {
@@ -368,10 +418,7 @@ async function fetchFromCoinGecko(addresses: string[], _symbols: string[]): Prom
 
     const ids = Array.from(new Set(Object.values(addressToCgId)));
 
-    if (ids.length === 0) {
-      // No known CoinGecko IDs for these addresses
-      return {};
-    }
+    if (ids.length === 0) return {};
 
     const headers: Record<string, string> = {
       Accept: 'application/json',
@@ -383,7 +430,6 @@ async function fetchFromCoinGecko(addresses: string[], _symbols: string[]): Prom
     }
 
     const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=usd`;
-
     const response = await fetch(url, { headers });
 
     if (!response.ok) {
