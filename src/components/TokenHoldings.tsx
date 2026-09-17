@@ -19,150 +19,162 @@ interface Props {
   isLoading?: boolean;
 }
 
+// ✅ WHITELIST: Real tokens that should NEVER be filtered
+const LEGITIMATE_TOKENS = new Set([
+  // Majors
+  'ETH', 'BTC', 'BNB', 'MATIC', 'AVAX', 'SOL', 'XRP', 'ADA', 'DOT', 'ATOM',
+  'LTC', 'BCH', 'NEAR', 'ALGO', 'FTM', 'ONE',
+  // Wrapped
+  'WETH', 'WBTC', 'WMATIC', 'WBNB', 'WAVAX',
+  // Stablecoins
+  'USDT', 'USDC', 'DAI', 'BUSD', 'TUSD', 'FRAX', 'USDP', 'GUSD',
+  // DeFi
+  'LINK', 'UNI', 'AAVE', 'MKR', 'CRV', 'CVX', 'COMP', 'SNX',
+  'BAT', 'MANA', 'SAND', 'APE', 'GRT', '1INCH', 'SUSHI',
+  // L2
+  'ARB', 'OP', 'IMX', 'BOBA',
+  // Meme (real ones)
+  'SHIB', 'DOGE', 'PEPE', 'FLOKI', 'BONK', 'WIF',
+  // Other
+  'GEL', 'YRISE', 'INDEX', 'MULTI', 'PICKLE',
+]);
+
 export default function TokenHoldings({ tokens, chain, isLoading = false }: Props) {
   const [tokensWithPrices, setTokensWithPrices] = useState<any[]>([]);
   const [loadingPrices, setLoadingPrices] = useState(false);
-  const [showScamWarning, setShowScamWarning] = useState(false);
 
-  // ✅ Parse token balance that handles hex strings (0x...)
   const parseTokenBalance = (balance: string | number, decimals: number): number => {
     if (balance === null || balance === undefined) return 0;
-
     try {
       if (typeof balance === 'string' && balance.startsWith('0x')) {
         const big = BigInt(balance);
         return Number(big) / Math.pow(10, decimals || 18);
       }
-
       const balanceNum = typeof balance === 'string' ? parseFloat(balance) : balance;
       if (isNaN(balanceNum)) return 0;
-
       return balanceNum / Math.pow(10, decimals || 18);
     } catch {
       return 0;
     }
   };
 
-  // ✅ Check if token is a known scam pattern (applies to ALL tokens, not just zero-balance)
+  // ✅ PRECISE scam detection — only obvious spam
   const isKnownScamToken = (token: Token): boolean => {
     const name = (token.tokenName || '').toLowerCase();
-    const symbol = (token.tokenSymbol || '').toLowerCase();
+    const symbol = (token.tokenSymbol || '').toUpperCase();
     
-    // ⚠️ Critical: Phishing links in token names - ALWAYS scam
-    const scamPatterns = [
-      // Phishing URLs
-      'fli.so', 't.ly', 'claim', 'reward', 'airdrop', 'bonus', 'free',
-      't.me', 'telegram', 'visit', 'pool', 'stake', 'vault',
-      'promo', 'giveaway', 'win', 'prize', 'claim now',
-      // Known scam tokens
-      'shib', 'nft', 'paws', 'dydx', 'voucher',
-      // Suspicious patterns
-      '.com', '.org', '.net', '.io', '.link',
-      'http://', 'https://', 'www.',
-      // Impersonation
-      'steth', 'wbtc', 'usdc', 'usdt', 'dai',
-    ];
+    // ✅ Whitelist always passes
+    if (LEGITIMATE_TOKENS.has(symbol)) return false;
     
-    // ✅ Check for scam patterns in name OR symbol (regardless of balance)
-    const hasScamPattern = scamPatterns.some(pattern => 
-      name.includes(pattern) || symbol.includes(pattern)
-    );
+    // ✅ Clear phishing URLs (only in name)
+    const hasUrl = /https?:\/\//.test(name) || /www\./.test(name) || 
+                   /\.com/.test(name) || /\.io/.test(name) || 
+                   /\.life/.test(name) || /\.today/.test(name) || 
+                   /t\.me\//.test(name) || /fli\.so/.test(name);
     
-    // ✅ Also check for suspicious characteristics
-    const hasPhishingLink = name.includes('.') || name.includes('/') || name.includes('http');
-    const hasSuspiciousFormat = /[\[\]\(\)\{\}]/.test(name) || /[\/\\]/.test(name);
-    const isAllCaps = symbol === symbol.toUpperCase() && symbol.length > 5 && !symbol.includes(' ');
+    // ✅ Clear phishing phrases
+    const hasPhishingPhrase = 
+      /claim.*reward/i.test(name) ||
+      /visit.*claim/i.test(name) ||
+      /claim.*now/i.test(name) ||
+      /free.*token/i.test(name) ||
+      /claim.*airdrop/i.test(name);
     
-    return hasScamPattern || hasPhishingLink || hasSuspiciousFormat || isAllCaps;
+    // ✅ Suspicious brackets in name
+    const hasBrackets = /[\[\]\(\)\{\}]/.test(token.tokenName || '');
+    
+    // ✅ Extremely long name/symbol (spam characteristic)
+    const isExtremelyLong = name.length > 100 || symbol.length > 30;
+    
+    return hasUrl || hasPhishingPhrase || hasBrackets || isExtremelyLong;
   };
 
-  // ✅ Check if token is likely real (has a price or is a known legitimate token)
   const isLikelyRealToken = (token: Token): boolean => {
     const symbol = (token.tokenSymbol || '').toUpperCase();
     
-    // Known legitimate tokens (whitelist)
-    const knownRealTokens = [
-      'ETH', 'USDC', 'USDT', 'WBTC', 'LINK', 'UNI', 'MATIC', 'BNB', 
-      'ARB', 'OP', 'AVAX', 'DAI', 'AAVE', 'MKR', 'CRV', 'CVX', 
-      'SOL', 'BTC', 'XRP', 'ADA', 'DOT', 'ATOM'
-    ];
+    // Whitelist match = real
+    if (LEGITIMATE_TOKENS.has(symbol)) return true;
     
-    if (knownRealTokens.includes(symbol)) {
-      return true;
-    }
-    
-    // If it has a balance AND doesn't have scam patterns, it might be real
+    // Has balance + no scam markers = probably real
     const balance = parseTokenBalance(token.balance, token.decimals);
-    return balance > 0.0001 && !isKnownScamToken(token);
+    if (balance <= 0) return false;
+    
+    // If it doesn't have obvious scam markers, keep it
+    return !isKnownScamToken(token);
   };
 
-  // ✅ Enhanced spam filter - checks ALL tokens regardless of balance
   const isSpamToken = (token: Token): boolean => {
-    // First, check if it's a known scam pattern
+    // ✅ Real tokens always pass
+    if (isLikelyRealToken(token)) return false;
+    
+    // ✅ Known scam tokens filtered
     if (isKnownScamToken(token)) {
-      console.log('🔍 Filtered scam token:', token.tokenSymbol, token.tokenName);
+      console.log('🚫 Filtered scam:', token.tokenSymbol, '-', token.tokenName);
       return true;
     }
     
-    // Check if it's likely real (has price or is whitelisted)
-    if (isLikelyRealToken(token)) {
-      return false; // Keep it
-    }
-    
-    // For unknown tokens: if balance is 0 or extremely tiny, filter it
+    // ✅ Zero-balance tokens filtered
     const balance = parseTokenBalance(token.balance, token.decimals);
-    if (balance === 0) {
-      console.log('🔍 Filtered zero-balance token:', token.tokenSymbol);
-      return true;
-    }
+    if (balance === 0) return true;
     
-    // For tokens with balance but no price and suspicious name, filter
-    if (balance < 0.0001 && token.tokenName && token.tokenName.length < 3) {
-      console.log('🔍 Filtered suspicious token:', token.tokenSymbol);
-      return true;
-    }
-    
-    // Keep tokens with balance > 0.0001
+    // ✅ Everything else: keep it
     return false;
   };
 
-  // ✅ Filter tokens
   const cleanTokens = tokens.filter(t => !isSpamToken(t));
 
-  // ✅ Keep only tokens with actual balance
   const finalTokens = cleanTokens.filter(t => {
     const actualBalance = parseTokenBalance(t.balance, t.decimals);
     return actualBalance > 0;
   });
 
-  // ✅ Count scam tokens for warning
   const scamCount = tokens.length - cleanTokens.length;
 
   useEffect(() => {
     const fetchTokenPrices = async () => {
-      if (!finalTokens || finalTokens.length === 0) return;
+      if (!finalTokens || finalTokens.length === 0) {
+        setTokensWithPrices([]);
+        return;
+      }
       
       setLoadingPrices(true);
       
       try {
-        const symbols = [...new Set(finalTokens.map(t => t.tokenSymbol?.toUpperCase()).filter(Boolean))];
+        const addresses = finalTokens
+          .map(t => t.contractAddress)
+          .filter(Boolean);
         
-        if (symbols.length === 0) {
+        if (addresses.length === 0) {
           setLoadingPrices(false);
           return;
         }
 
-        const priceData = await getMultipleTokenPrices(symbols);
+        // ✅ Use /api/prices with addresses
+        const response = await fetch(
+          `/api/prices?addresses=${addresses.join(',')}&chain=${chain}`
+        );
+        
+        if (!response.ok) {
+          throw new Error(`Prices API returned ${response.status}`);
+        }
+        
+        const priceData: Record<string, { usd: number | string; source: string }> = 
+          await response.json();
         
         const updatedTokens = finalTokens.map((token) => {
-          const symbol = token.tokenSymbol?.toUpperCase() || '';
-          const price = priceData[symbol] || 0;
+          const addr = token.contractAddress?.toLowerCase() || '';
+          const priceEntry = priceData[addr];
+          const rawPrice = priceEntry?.usd;
+          const price = typeof rawPrice === 'string' ? parseFloat(rawPrice) :
+                        typeof rawPrice === 'number' ? rawPrice : 0;
+          
           const actualBalance = parseTokenBalance(token.balance, token.decimals);
+          const value = isNaN(price) ? 0 : price * actualBalance;
           
           return {
             ...token,
-            price,
-            value: price * actualBalance,
+            price: isNaN(price) ? 0 : price,
+            value,
             balanceFormatted: actualBalance,
           };
         });
@@ -182,7 +194,7 @@ export default function TokenHoldings({ tokens, chain, isLoading = false }: Prop
     };
 
     fetchTokenPrices();
-  }, [tokens]);
+  }, [tokens, chain]);
 
   if (isLoading) {
     return (
@@ -212,7 +224,7 @@ export default function TokenHoldings({ tokens, chain, isLoading = false }: Prop
         <Shield className="h-8 w-8 text-green-500 dark:text-green-400 mb-3" />
         <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
           {tokens.length > 0 && scamCount > 0 
-            ? `${scamCount} scam tokens filtered` 
+            ? `${scamCount} scam token${scamCount === 1 ? '' : 's'} filtered` 
             : 'No valid tokens found'}
         </p>
         <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm">
@@ -220,12 +232,6 @@ export default function TokenHoldings({ tokens, chain, isLoading = false }: Prop
             ? 'Your wallet has been protected from phishing tokens' 
             : 'This wallet does not hold any legitimate tokens'}
         </p>
-        {tokens.length > 0 && scamCount > 0 && (
-          <p className="mt-2 text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1">
-            <Shield className="h-3 w-3" />
-            Scam tokens filtered: {scamCount}
-          </p>
-        )}
       </div>
     );
   }
@@ -249,7 +255,7 @@ export default function TokenHoldings({ tokens, chain, isLoading = false }: Prop
           {scamCount > 0 && (
             <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
               <Shield className="h-3 w-3" />
-              {scamCount} scam tokens blocked
+              {scamCount} blocked
             </span>
           )}
           {totalValue > 0 && (
