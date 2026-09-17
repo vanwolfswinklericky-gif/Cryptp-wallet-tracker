@@ -9,10 +9,15 @@ import { withCache } from '@/lib/middleware/with-cache';
 const portfolioService = PortfolioService.getInstance();
 
 export async function GET(request: NextRequest) {
+  // ✅ FIX: Extract searchParams BEFORE the callbacks
+  const searchParams = request.nextUrl.searchParams;
+  const addressParam = searchParams.get('address') || '';
+  const chainParam = searchParams.get('chain') || 'ethereum';
+  const daysParam = searchParams.get('days') || '30';
+
   return withRateLimit(request, async () => {
     return withCache(request, async () => {
       try {
-        const searchParams = request.nextUrl.searchParams;
         const address = searchParams.get('address');
         const chain = searchParams.get('chain') || 'ethereum';
         const days = parseInt(searchParams.get('days') || '30');
@@ -82,7 +87,8 @@ export async function GET(request: NextRequest) {
         );
       }
     }, {
-      key: `portfolio:history:${searchParams.get('address')}:${searchParams.get('chain')}:${days}`,
+      // ✅ FIX: Now searchParams is accessible here
+      key: `portfolio:history:${addressParam}:${chainParam}:${daysParam}`,
       ttl: 60,
     });
   }, {

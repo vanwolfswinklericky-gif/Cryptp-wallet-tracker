@@ -47,3 +47,5 @@ node_modules/@prisma/
 # Prisma compiled files
 *.wasm
 *.wasm-base64.js
+.vercel
+.env*
