@@ -3,6 +3,33 @@ import { cache, getWalletCacheKey } from '@/lib/cache';
 import { logger } from '@/lib/logger';
 import { ethers } from 'ethers';
 
+// ============================================================
+// ✅ ALCHEMY RPC CONFIGURATION
+// All RPC calls go through Alchemy (reliable, no Cloudflare blocks)
+// ============================================================
+
+const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY;
+
+const ALCHEMY_NETWORKS: Record<string, string> = {
+  ethereum: 'eth-mainnet',
+  polygon: 'polygon-mainnet',
+  bsc: 'bnb-mainnet',
+  arbitrum: 'arb-mainnet',
+  optimism: 'opt-mainnet',
+  avalanche: 'avax-mainnet',
+  base: 'base-mainnet',
+};
+
+function getAlchemyRpcUrl(chain: string): string {
+  if (!ALCHEMY_API_KEY || ALCHEMY_API_KEY.length < 10) {
+    throw new Error(
+      'ALCHEMY_API_KEY is not set. Cannot connect to blockchain.'
+    );
+  }
+  const network = ALCHEMY_NETWORKS[chain.toLowerCase()] || 'eth-mainnet';
+  return `https://${network}.g.alchemy.com/v2/${ALCHEMY_API_KEY}`;
+}
+
 export interface TokenBalance {
   tokenAddress: string;
   tokenSymbol: string;
@@ -25,60 +52,52 @@ export interface WalletData {
   nfts?: any[];
 }
 
-// Chain configuration
+// Chain configuration (no more hardcoded RPC URLs)
 const CHAIN_CONFIG: Record<string, {
-  rpcUrl: string;
   explorerApi: string;
   explorerKey: string | undefined;
   nativeSymbol: string;
   chainId: number;
 }> = {
   ethereum: {
-    rpcUrl: process.env.ETHEREUM_RPC_URL || 'https://eth.llamarpc.com',
     explorerApi: 'https://api.etherscan.io/api',
     explorerKey: process.env.ETHERSCAN_API_KEY,
     nativeSymbol: 'ETH',
     chainId: 1,
   },
   polygon: {
-    rpcUrl: process.env.POLYGON_RPC_URL || 'https://polygon-rpc.com',
     explorerApi: 'https://api.polygonscan.com/api',
-    explorerKey: process.env.POLYGONSCAN_API_KEY,
+    explorerKey: process.env.POLYGONSCAN_API_KEY || process.env.ETHERSCAN_API_KEY,
     nativeSymbol: 'MATIC',
     chainId: 137,
   },
   bsc: {
-    rpcUrl: process.env.BSC_RPC_URL || 'https://bsc-dataseed1.binance.org',
     explorerApi: 'https://api.bscscan.com/api',
-    explorerKey: process.env.BSCSCAN_API_KEY,
+    explorerKey: process.env.BSCSCAN_API_KEY || process.env.ETHERSCAN_API_KEY,
     nativeSymbol: 'BNB',
     chainId: 56,
   },
   arbitrum: {
-    rpcUrl: process.env.ARBITRUM_RPC_URL || 'https://arb1.arbitrum.io/rpc',
     explorerApi: 'https://api.arbiscan.io/api',
-    explorerKey: process.env.ARBISCAN_API_KEY,
+    explorerKey: process.env.ARBISCAN_API_KEY || process.env.ETHERSCAN_API_KEY,
     nativeSymbol: 'ETH',
     chainId: 42161,
   },
   optimism: {
-    rpcUrl: process.env.OPTIMISM_RPC_URL || 'https://mainnet.optimism.io',
     explorerApi: 'https://api-optimistic.etherscan.io/api',
-    explorerKey: process.env.OPTIMISM_API_KEY,
+    explorerKey: process.env.OPTIMISM_API_KEY || process.env.ETHERSCAN_API_KEY,
     nativeSymbol: 'ETH',
     chainId: 10,
   },
   avalanche: {
-    rpcUrl: process.env.AVALANCHE_RPC_URL || 'https://api.avax.network/ext/bc/C/rpc',
     explorerApi: 'https://api.snowtrace.io/api',
-    explorerKey: process.env.SNOWTRACE_API_KEY,
+    explorerKey: process.env.SNOWTRACE_API_KEY || process.env.ETHERSCAN_API_KEY,
     nativeSymbol: 'AVAX',
     chainId: 43114,
   },
   base: {
-    rpcUrl: process.env.BASE_RPC_URL || 'https://mainnet.base.org',
     explorerApi: 'https://api.basescan.org/api',
-    explorerKey: process.env.BASESCAN_API_KEY,
+    explorerKey: process.env.BASESCAN_API_KEY || process.env.ETHERSCAN_API_KEY,
     nativeSymbol: 'ETH',
     chainId: 8453,
   },
@@ -101,7 +120,7 @@ const KNOWN_TOKENS: Record<string, string[]> = {
     '0x514910771af9ca656af840dff83e8264ecf986ca', // LINK
     '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984', // UNI
     '0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0', // MATIC
-    '0x15b7c0c907e4c6b9adaaaabc300c08991d6cea05', // GEL (Gelato Network)
+    '0x15b7c0c907e4c6b9adaaaabc300c08991d6cea05', // GEL
     '0x6b175474e89094c44da98b954eedeac495271d0f', // DAI
     '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2', // WETH
   ],
@@ -130,16 +149,23 @@ export class WalletService {
     return WalletService.instance;
   }
 
+  /**
+   * ✅ Get or create an Alchemy-backed provider
+   */
   private getProvider(chain: string): ethers.JsonRpcProvider {
     const key = chain.toLowerCase();
+
     if (this.providers.has(key)) {
       return this.providers.get(key)!;
     }
-    const config = CHAIN_CONFIG[key];
-    if (!config) {
-      throw new Error(`Unsupported chain: ${chain}`);
-    }
-    const provider = new ethers.JsonRpcProvider(config.rpcUrl);
+
+    const rpcUrl = getAlchemyRpcUrl(key);
+    logger.info(`🔑 Creating Alchemy provider for ${key}`);
+
+    const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, {
+      staticNetwork: true, // ✅ Critical: prevents "failed to detect network"
+    });
+
     this.providers.set(key, provider);
     return provider;
   }
@@ -189,13 +215,15 @@ export class WalletService {
     };
 
     cache.set(cacheKey, walletData, 60);
-    logger.info(`✅ Wallet data ready: ${balance.toFixed(6)} ${config.nativeSymbol}, ${tokens.length} tokens`);
+    logger.info(
+      `✅ Wallet data ready: ${balance.toFixed(6)} ${config.nativeSymbol}, ${tokens.length} tokens`
+    );
 
     return walletData;
   }
 
   /**
-   * ✅ Fetch native token balance
+   * ✅ Fetch native token balance via Alchemy
    */
   private async fetchNativeBalance(address: string, chain: string): Promise<number> {
     try {
@@ -241,13 +269,11 @@ export class WalletService {
   }
 
   /**
-   * ✅ Fetch token balances using DIRECT CONTRACT CALLS
-   *    This is the fix — no more Etherscan dependency for balances
+   * ✅ Fetch token balances using DIRECT CONTRACT CALLS via Alchemy
    */
   private async fetchTokenBalances(address: string, chain: string): Promise<TokenBalance[]> {
     try {
       logger.info(`🔍 Fetching token balances for ${address} on ${chain}...`);
-      const config = CHAIN_CONFIG[chain];
 
       // Step 1: Discover which tokens this wallet has interacted with
       const tokenCandidates = await this.discoverTokens(address, chain);
@@ -258,11 +284,7 @@ export class WalletService {
       }
 
       // Step 2: Check balance directly for each token via RPC
-      const balances = await this.checkBalancesViaRpc(
-        tokenCandidates,
-        address,
-        chain
-      );
+      const balances = await this.checkBalancesViaRpc(tokenCandidates, address, chain);
 
       const withBalance = balances.filter((b) => b !== null) as TokenBalance[];
       logger.info(`✅ Found ${withBalance.length} tokens with balance`);
@@ -276,16 +298,15 @@ export class WalletService {
 
   /**
    * ✅ Discover which tokens the wallet has interacted with
-   *    Source: Etherscan token transfer events + Known token list
    */
   private async discoverTokens(address: string, chain: string): Promise<string[]> {
     const tokens = new Set<string>();
 
-    // Add known tokens for this chain (only if they have a balance — we'll check next)
+    // Add known tokens for this chain
     const knownTokens = KNOWN_TOKENS[chain] || [];
     knownTokens.forEach((t) => tokens.add(t.toLowerCase()));
 
-    // If we have an explorer API key, use it to discover tokens from transfer history
+    // Use explorer to discover more tokens from transfer history
     const config = CHAIN_CONFIG[chain];
     if (config.explorerKey) {
       try {
@@ -300,6 +321,8 @@ export class WalletService {
             }
           });
           logger.info(`📊 Found ${data.result.length} token transfer events`);
+        } else {
+          logger.warn(`⚠️ Token discovery returned: ${data.message}`);
         }
       } catch (error) {
         logger.warn(`⚠️ Token discovery via explorer failed:`, error);
@@ -311,7 +334,6 @@ export class WalletService {
 
   /**
    * ✅ Check balances for a list of tokens via direct RPC calls
-   *    This is the core fix — 100% reliable, no API key needed
    */
   private async checkBalancesViaRpc(
     tokenAddresses: string[],
@@ -319,12 +341,16 @@ export class WalletService {
     chain: string
   ): Promise<(TokenBalance | null)[]> {
     const provider = this.getProvider(chain);
-    const BATCH_SIZE = 20; // Parallel batch size
+    const BATCH_SIZE = 20;
     const results: (TokenBalance | null)[] = [];
 
     for (let i = 0; i < tokenAddresses.length; i += BATCH_SIZE) {
       const batch = tokenAddresses.slice(i, i + BATCH_SIZE);
-      logger.info(`🔄 Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(tokenAddresses.length / BATCH_SIZE)} (${batch.length} tokens)`);
+      logger.info(
+        `🔄 Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(
+          tokenAddresses.length / BATCH_SIZE
+        )} (${batch.length} tokens)`
+      );
 
       const batchResults = await Promise.all(
         batch.map((tokenAddress) =>
@@ -349,7 +375,6 @@ export class WalletService {
     try {
       const contract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
 
-      // Fetch all metadata in parallel
       const [balance, decimals, symbol, name] = await Promise.all([
         contract.balanceOf(walletAddress).catch(() => BigInt(0)),
         contract.decimals().catch(() => 18),
@@ -357,7 +382,6 @@ export class WalletService {
         contract.name().catch(() => 'Unknown Token'),
       ]);
 
-      // Skip zero balances
       if (balance === BigInt(0)) {
         return null;
       }
@@ -374,8 +398,7 @@ export class WalletService {
         decimals: Number(decimals),
         formatted,
       };
-    } catch (error) {
-      // Silent fail — the token contract might be non-standard or nonexistent
+    } catch {
       return null;
     }
   }
